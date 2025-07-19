@@ -3,16 +3,30 @@
 # Default target
 help:
 	@echo "Spotify Engine - Available commands:"
-	@echo "  make setup      - Create virtual environment and install dependencies"
-	@echo "  make install    - Install dependencies (requires activated venv)"
-	@echo "  make data       - Generate synthetic data and build graph"
-	@echo "  make train      - Train the GAT model"
-	@echo "  make demo       - Launch Jupyter notebook demo"
-	@echo "  make test       - Run tests (when implemented)"
-	@echo "  make lint       - Run code linters"
-	@echo "  make format     - Format code with black"
-	@echo "  make clean      - Remove generated files and cache"
-	@echo "  make all        - Run full pipeline (data + train)"
+	@echo ""
+	@echo "Setup & Installation:"
+	@echo "  make setup          - Create virtual environment"
+	@echo "  make install        - Install core dependencies"
+	@echo "  make dev-install    - Install development tools (formatters, linters)"
+	@echo ""
+	@echo "Main Pipeline:"
+	@echo "  make data           - Generate synthetic data and build graph"
+	@echo "  make train          - Train the GAT model"
+	@echo "  make demo           - Launch Jupyter notebook demo"
+	@echo "  make all            - Run full pipeline (data + train)"
+	@echo ""
+	@echo "Code Quality:"
+	@echo "  make format         - Auto-format code with black & isort"
+	@echo "  make format-check   - Check formatting without changes"
+	@echo "  make lint           - Run flake8 and pylint"
+	@echo "  make type-check     - Run mypy type checking"
+	@echo "  make quality        - Run all quality checks"
+	@echo "  make fix            - Auto-fix code issues"
+	@echo ""
+	@echo "Other:"
+	@echo "  make test           - Run tests (when implemented)"
+	@echo "  make clean          - Remove generated files and cache"
+	@echo "  make clean-all      - Remove everything including venv"
 
 # Setup virtual environment
 setup:
@@ -61,17 +75,55 @@ test:
 	@echo "Tests not yet implemented"
 	# pytest tests/
 
-# Lint code
-lint:
-	@echo "Running flake8..."
-	flake8 src/ scripts/ --max-line-length=100 --ignore=E501,W503 || true
-	@echo "Running pylint..."
-	pylint src/ scripts/ --disable=C0103,C0114,C0115,C0116,R0913 || true
+# Install development dependencies
+dev-install:
+	pip install -r requirements-dev.txt
+	@echo "Development tools installed!"
 
 # Format code
 format:
-	black src/ scripts/ --line-length=100
+	@echo "Formatting with black..."
+	black src/ scripts/ 
+	@echo "Sorting imports with isort..."
 	isort src/ scripts/
+	@echo "Code formatting complete!"
+
+# Check code formatting (without changing files)
+format-check:
+	@echo "Checking code format..."
+	black src/ scripts/ --check --diff
+	isort src/ scripts/ --check-only --diff
+
+# Lint code
+lint:
+	@echo "Running flake8..."
+	flake8 src/ scripts/
+	@echo "Running pylint..."
+	pylint src/ scripts/ || true
+	@echo "Linting complete!"
+
+# Type checking
+type-check:
+	@echo "Running mypy type checks..."
+	mypy src/
+
+# Run all quality checks
+quality: format-check lint type-check
+	@echo "All quality checks complete!"
+
+# Auto-fix code issues
+fix: format
+	@echo "Running auto-fixes..."
+	# Add any additional auto-fix commands here
+	@echo "Auto-fix complete!"
+
+# Pre-commit setup
+pre-commit-install:
+	pre-commit install
+	@echo "Pre-commit hooks installed!"
+
+pre-commit-run:
+	pre-commit run --all-files
 
 # Clean generated files
 clean:
@@ -95,9 +147,7 @@ clean-all: clean
 all: data train
 	@echo "Full pipeline complete!"
 
-# Development shortcuts
-dev-install:
-	pip install black flake8 pylint isort pytest ipykernel
+# Development shortcuts (removed - duplicate of dev-install above)
 
 run: data train demo
 

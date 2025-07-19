@@ -8,9 +8,11 @@ This script checks:
 - Sufficient user-song interactions for training
 """
 
-import pandas as pd
+import argparse
 import sys
 from typing import List, Tuple
+
+import pandas as pd
 
 
 def validate_synthetic_data(sessions_path: str) -> Tuple[bool, List[str]]:
@@ -50,9 +52,7 @@ def validate_synthetic_data(sessions_path: str) -> Tuple[bool, List[str]]:
         issues.append("track_duration_ms should be numeric")
 
     # Check for invalid durations
-    invalid_durations = sessions_df[
-        sessions_df["ms_played"] > sessions_df["track_duration_ms"]
-    ]
+    invalid_durations = sessions_df[sessions_df["ms_played"] > sessions_df["track_duration_ms"]]
     if len(invalid_durations) > 0:
         issues.append(
             f"Found {len(invalid_durations)} sessions where ms_played > track_duration_ms"
@@ -73,9 +73,7 @@ def validate_synthetic_data(sessions_path: str) -> Tuple[bool, List[str]]:
     interactions_per_user = sessions_df.groupby("user_id")["track_id"].nunique()
     users_with_few_songs = (interactions_per_user < 5).sum()
     if users_with_few_songs > 0:
-        issues.append(
-            f"{users_with_few_songs} users have fewer than 5 unique song interactions"
-        )
+        issues.append(f"{users_with_few_songs} users have fewer than 5 unique song interactions")
 
     # Check for orphaned IDs
     n_users = sessions_df["user_id"].nunique()
@@ -105,9 +103,7 @@ def validate_synthetic_data(sessions_path: str) -> Tuple[bool, List[str]]:
 
 
 def main():
-    """Main validation function."""
-    import argparse
-
+    """Run validation on synthetic music data."""
     parser = argparse.ArgumentParser(description="Validate synthetic music data")
     parser.add_argument(
         "--input",

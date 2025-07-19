@@ -94,6 +94,31 @@ spotify-engine/
     └── models/         # GAT model
 ```
 
+## Development
+
+### Code Quality Tools
+
+```bash
+# Install development dependencies
+make dev-install
+
+# Format code automatically
+make format
+
+# Run linters
+make lint
+
+# Run all quality checks
+make quality
+```
+
+### Code Style
+
+- **Formatter**: Black (100 char line length)
+- **Import sorting**: isort
+- **Linting**: flake8 + pylint
+- **Type checking**: mypy
+
 ## Troubleshooting
 
 **Import errors**: Make sure to install PyTorch before torch-geometric

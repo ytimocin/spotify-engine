@@ -8,8 +8,9 @@ Aggregates raw listening sessions into user-song edges with:
 """
 
 import argparse
-import pandas as pd
 from pathlib import Path
+
+import pandas as pd
 
 
 def prepare_edge_data(sessions_df: pd.DataFrame) -> pd.DataFrame:
@@ -38,17 +39,13 @@ def prepare_edge_data(sessions_df: pd.DataFrame) -> pd.DataFrame:
     ]
 
     # Calculate average completion ratio
-    edge_data["avg_ms_per_play"] = (
-        edge_data["total_ms_played"] / edge_data["play_count"]
-    )
+    edge_data["avg_ms_per_play"] = edge_data["total_ms_played"] / edge_data["play_count"]
     edge_data["avg_completion_ratio"] = (
         edge_data["avg_ms_per_play"] / edge_data["track_duration_ms"]
     )
 
     # Cap completion ratio at 1.0 (in case of rounding errors)
-    edge_data["avg_completion_ratio"] = edge_data["avg_completion_ratio"].clip(
-        upper=1.0
-    )
+    edge_data["avg_completion_ratio"] = edge_data["avg_completion_ratio"].clip(upper=1.0)
 
     # Drop intermediate columns
     edge_data = edge_data.drop(columns=["avg_ms_per_play", "track_duration_ms"])
@@ -57,6 +54,7 @@ def prepare_edge_data(sessions_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def main():
+    """Prepare music session data for graph construction."""
     parser = argparse.ArgumentParser(
         description="Prepare music session data for graph construction"
     )
