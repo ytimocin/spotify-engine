@@ -57,6 +57,9 @@ logs/
 outputs/
 temp/
 .cache/
+checkpoints/
+runs/
+*.log
 
 # ML/Data files
 *.h5
