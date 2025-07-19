@@ -1,6 +1,12 @@
 # Core dependencies for spotify-engine
-torch>=2.0.0
-torch-geometric>=2.3.0
+# 
+# IMPORTANT: Install PyTorch first using the appropriate command for your system:
+# macOS/Linux: pip install torch torchvision torchaudio
+# Windows: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+#
+# Then install PyTorch Geometric:
+# pip install torch-geometric
+#
 pandas>=1.5.0
 numpy>=1.23.0
 tqdm>=4.65.0

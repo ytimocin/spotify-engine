@@ -71,3 +71,5 @@ temp/
 .env.production
 secrets/
 config/secrets.yaml
+
+CLAUDE.md
