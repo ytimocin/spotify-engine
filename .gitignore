@@ -16,10 +16,13 @@ parts/
 sdist/
 var/
 wheels/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
+pip-log.txt
+pip-delete-this-directory.txt
 
 # Virtual Environment
 .env
@@ -32,36 +35,57 @@ venv.bak/
 
 # Jupyter Notebook
 .ipynb_checkpoints
-*.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
 
-# PyCharm
+# IDEs
 .idea/
-
-# VS Code
 .vscode/
 *.code-workspace
+*.swp
+*.swo
+*~
 
-# macOS
+# Operating System
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 .AppleDouble
 .LSOverride
 
-# Project specific
+# Project Data (but keep directory structure)
 data/*.csv
 data/*.parquet
 data/*.pt
-models/
-*.ckpt
-*.pt
+data/*.json
+!data/.gitkeep
+!data/README.md
+
+# Model Checkpoints (but keep directory)
+models/*.ckpt
+models/*.pt
+models/*.pth
+models/*.json
+!models/.gitkeep
+!models/README.md
+
+# Logs and Outputs
 logs/
 outputs/
 temp/
+tmp/
 .cache/
-checkpoints/
 runs/
 *.log
 
-# ML/Data files
+# Machine Learning
+wandb/
+mlruns/
+.tensorboard/
+checkpoints/
 *.h5
 *.hdf5
 *.pkl
@@ -69,10 +93,36 @@ runs/
 *.npy
 *.npz
 
-# Secrets
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+*.cover
+.hypothesis/
+
+# Documentation
+docs/_build/
+docs/.doctrees/
+site/
+
+# Type Checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+
+# Profiling
+*.prof
+*.lprof
+*.stats
+
+# Environment and Secrets
 .env.local
 .env.production
+.env.*.local
 secrets/
 config/secrets.yaml
-
-CLAUDE.md
+config/local.yaml
