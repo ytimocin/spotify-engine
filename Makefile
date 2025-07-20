@@ -11,7 +11,8 @@ help:
 	@echo ""
 	@echo "Main Pipeline:"
 	@echo "  make data           - Generate synthetic data and build graph"
-	@echo "  make train          - Train the GAT model"
+	@echo "  make train          - Train the GAT model (basic)"
+	@echo "  make train-improved - Train with validation & early stopping (recommended)"
 	@echo "  make demo           - Launch Jupyter notebook demo"
 	@echo "  make all            - Run full pipeline (data + train)"
 	@echo ""
@@ -56,11 +57,17 @@ data:
 	python -m src.build_graph
 	@echo "Data pipeline complete!"
 
-# Train model
+# Train model (original)
 train:
 	@echo "Training GAT model..."
 	python -m src.train --epochs 20
 	@echo "Training complete! Check models/model.ckpt"
+
+# Train with improved pipeline (recommended)
+train-improved:
+	@echo "Training GAT model with improved pipeline..."
+	python -m src.train_improved --epochs 50 --patience 5
+	@echo "Training complete! Check models/model_improved.ckpt"
 
 # Quick training (fewer epochs)
 train-quick:

@@ -39,7 +39,7 @@ python scripts/generate_synthetic_data.py
 # 5. Build graph and train model
 python scripts/prepare_mssd.py
 python -m src.build_graph
-python -m src.train
+python -m src.train_improved  # Recommended: includes validation & early stopping
 
 # 6. View recommendations
 jupyter notebook notebooks/quick_demo.ipynb
