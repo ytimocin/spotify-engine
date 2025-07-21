@@ -87,8 +87,9 @@ def create_data_profile_report(data_dir: str, output_dir: str):
     ax1.set_title("Song Completion Distribution")
     ax1.legend()
 
-    # Skip rate by user type
-    skip_by_type = user_type_sessions.groupby("user_type")["is_skip"].mean()
+    # Skip rate by user type - need to merge the is_skip column
+    user_type_sessions_with_skip = sessions_df.merge(users_df, on="user_id")
+    skip_by_type = user_type_sessions_with_skip.groupby("user_type")["is_skip"].mean()
     ax2.bar(skip_by_type.index, skip_by_type.values, color="coral")
     ax2.set_xlabel("User Type")
     ax2.set_ylabel("Skip Rate")
