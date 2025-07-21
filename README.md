@@ -75,13 +75,41 @@ quick_demo.ipynb (interactive recommendations with explanations)
 ## Model Performance
 
 After 20 epochs of training on synthetic data:
+
 - **Loss**: 0.6174 → 0.2497 (59% improvement)
 - **Recall@10**: 7.9% → 40.9% (5x improvement)
 - **Parameters**: 206,688 (lightweight model)
 
+## Testing Models
+
+### Test Individual Models
+
+```bash
+# Test the basic model
+make test-model
+
+# Test the improved model (with validation splits)
+python -m src.test_model --model models/model_improved.ckpt
+```
+
+### Compare Models
+
+```bash
+# Compare all available models side-by-side
+make compare-models
+```
+
+This will show:
+
+- Test set performance metrics (Recall@10, NDCG@10)
+- Training history and best epochs
+- Sample recommendations with attention-based explanations
+
+Note: `model.ckpt` shows N/A for test metrics because it trains on all data without splits. Only `model_improved.ckpt` uses train/val/test splits.
+
 ## Project Structure
 
-```
+```text
 spotify-engine/
 ├── data/               # Data files (gitignored)
 ├── docs/               # Documentation
