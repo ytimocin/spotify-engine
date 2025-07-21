@@ -27,21 +27,20 @@ python -m src.build_graph                    # Build PyG graph
 python -m src.train --epochs 20              # Basic training (SimpleTrainer)
 python -m src.train_improved --epochs 50     # Advanced training (AdvancedTrainer)
 
-# Data generation with custom config
+# Enhanced data generation and validation
 python scripts/generate_synthetic_data.py --config config/weekend_heavy.yaml
+python scripts/validate_data.py             # Comprehensive data validation
+python scripts/visualize_data_profile.py    # Generate data quality visualizations
+make profile                                 # Generate profile report
+make validate                                # Run all validation checks
+
+# Enhanced model testing
+python scripts/test_enhanced_model.py --user 0 --top-k 5 --verbose
+make test-model                              # Test trained model
+make compare-models                          # Compare model versions
 
 # Run demo
 jupyter notebook notebooks/quick_demo.ipynb
-
-# Validation and quality checks
-python scripts/validate_data.py              # Verify data integrity
-make lint                                    # Run linters
-make format                                  # Auto-format code
-
-# Testing
-pytest tests/                                # Run unit tests
-make test-model                              # Test trained model
-make compare-models                          # Compare model versions
 
 # Code quality
 make format                                  # Auto-format code
@@ -67,32 +66,52 @@ raw_sessions.csv → prepare_mssd.py → aggregated_edge_list.parquet
 ### Graph Structure
 
 - **Nodes**: 
-  - `listener`: Users in the dataset
-  - `song`: Individual tracks
-  - `artist`: Artists linked to songs
+  - `listener`: Users in the dataset with behavioral types (casual, regular, power)
+  - `song`: Individual tracks with genre associations
+  - `artist`: Artists linked to songs with genre memberships
+  - `genre`: Music genres (35 total) with Zipf-distributed popularity
   
 - **Edges**:
   - `listener → song`: Listening interactions with attributes:
     - `play_count`: Number of times played
     - `sec_ratio`: Listening duration ratio
     - `edge_weight`: 0.7 * sec_ratio + 0.3 * log1p(play_count)
+  - `artist → genre`: Artist genre associations (1-3 genres per artist)
+  - `song → genre`: Song genre inheritance from artists
+  - `listener → genre`: User genre preferences with affinity scores
 
 ### Key Components
 
-1. **scripts/prepare_mssd.py**: ETL pipeline that aggregates raw sessions by (user_id, track_id) and calculates play metrics
+1. **scripts/generate_synthetic_data.py**: Enhanced data generation with realistic behavioral patterns
+   - Beta distribution for completion rates (eliminates 100% spikes)
+   - 35 genres with Zipf distribution for realistic popularity
+   - User behavioral multipliers for session length and skip rates
+   - Temporal patterns with reduced early morning activity
 
-2. **src/build_graph.py**: Constructs PyTorch Geometric HeteroData object with listener/song/artist nodes and weighted edges
+2. **scripts/prepare_mssd.py**: ETL pipeline that aggregates raw sessions by (user_id, track_id) and calculates play metrics
 
-3. **src/models/gat_recommender.py**: Single-layer GAT model with 32-dim embeddings and dot-product scoring
+3. **src/build_graph.py**: Constructs PyTorch Geometric HeteroData object with listener/song/artist/genre nodes and weighted edges
 
-4. **src/trainers/**: Modular training architecture
+4. **src/models/**: Model architectures
+   - `gat_recommender.py`: Basic single-layer GAT model with 32-dim embeddings
+   - `enhanced_gat_recommender.py`: Multi-layer GAT with genre awareness and explainability
+
+5. **src/trainers/**: Modular training architecture
    - `BaseTrainer`: Abstract base class with common functionality
    - `SimpleTrainer`: Basic training on all data
    - `AdvancedTrainer`: Production training with validation, early stopping, LR scheduling
 
-5. **src/train.py** & **src/train_improved.py**: CLI wrappers for SimpleTrainer and AdvancedTrainer respectively
+6. **src/explainability.py**: Recommendation explanation system with attention weights and genre influence analysis
 
-6. **notebooks/quick_demo.ipynb**: Interactive demonstration showing top-5 recommendations with attention coefficients
+7. **src/metrics_extended.py**: Extended evaluation metrics including genre-aware diversity and coverage measures
+
+8. **src/visualization/**: Visualization tools for attention analysis and data profiling
+
+9. **scripts/validate_data.py**: Comprehensive data quality validation with behavioral pattern checks
+
+10. **scripts/visualize_data_profile.py**: Enhanced data profiling with genre analysis and temporal pattern visualization
+
+11. **notebooks/quick_demo.ipynb**: Interactive demonstration showing recommendations with explainability
 
 ## Implementation Notes
 
@@ -106,9 +125,13 @@ raw_sessions.csv → prepare_mssd.py → aggregated_edge_list.parquet
 
 ### Recent Improvements
 
-- **Genre Support**: Artists and songs now have genre associations, users have genre preferences
-- **Data Validation**: Automatic quality checks for sessions, graph connectivity, and genre coverage
-- **Configuration Management**: YAML-based configuration files for customizing data generation
+- **✅ Complete Genre System**: 35 genres with Zipf distribution, genre-aware GAT model, user genre preferences
+- **✅ Enhanced Synthetic Data**: Beta distribution for completion rates, user behavioral multipliers, realistic temporal patterns
+- **✅ Explainability Framework**: Attention weight analysis, genre influence scoring, recommendation reasoning
+- **✅ Advanced Model Architecture**: Multi-layer heterogeneous GAT with genre awareness and explainability
+- **✅ Comprehensive Data Validation**: Quality checks for behavioral patterns, genre distributions, temporal patterns
+- **✅ Enhanced Visualization**: Genre analysis, skip-completion coupling, temporal pattern validation
+- **✅ Extended Evaluation Metrics**: Genre-aware diversity, coverage, and influence analysis
 - **Performance Optimization**: Matrix operations for 3-5x speedup in session generation
 - **Code Quality**: Comprehensive linting with flake8, pylint, mypy, and black formatting
 
