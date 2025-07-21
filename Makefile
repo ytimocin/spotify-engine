@@ -13,6 +13,8 @@ help:
 	@echo "  make data           - Generate synthetic data and build graph"
 	@echo "  make train          - Train the GAT model (basic)"
 	@echo "  make train-improved - Train with validation & early stopping (recommended)"
+	@echo "  make test-model     - Test the trained model and show recommendations"
+	@echo "  make compare-models - Compare all available models"
 	@echo "  make demo           - Launch Jupyter notebook demo"
 	@echo "  make all            - Run full pipeline (data + train)"
 	@echo ""
@@ -76,6 +78,16 @@ train-quick:
 # Launch demo
 demo:
 	jupyter notebook notebooks/quick_demo.ipynb
+
+# Test trained model
+test-model:
+	@echo "Testing trained model..."
+	python -m src.test_model --num-users 3 --num-recs 5
+
+# Compare models
+compare-models:
+	@echo "Comparing all trained models..."
+	python -m src.test_model --compare
 
 # Run tests (placeholder)
 test:

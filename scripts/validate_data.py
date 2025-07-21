@@ -26,7 +26,7 @@ def validate_synthetic_data(sessions_path: str) -> Tuple[bool, List[str]]:
         sessions_df = pd.read_csv(sessions_path)
     except FileNotFoundError:
         return False, [f"File not found: {sessions_path}"]
-    except Exception as e:
+    except (pd.errors.ParserError, pd.errors.EmptyDataError) as e:
         return False, [f"Error reading file: {str(e)}"]
 
     issues = []

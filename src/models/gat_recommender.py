@@ -8,8 +8,8 @@ Simple 1-layer GAT that:
 """
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 from torch_geometric.nn import GATConv
 
 

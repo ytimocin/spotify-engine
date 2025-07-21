@@ -29,3 +29,4 @@ per-file-ignores =
     test_*.py:D100,D101,D102,D103
     scripts/generate_synthetic_data.py:C901
     scripts/validate_data.py:C901
+    src/test_model.py:C901

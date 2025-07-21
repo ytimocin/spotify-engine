@@ -16,6 +16,7 @@ import numpy as np
 import torch
 
 from src.models.gat_recommender import GATRecommender
+from src.utils import create_node_indices
 
 
 def bpr_loss(pos_scores, neg_scores):
@@ -32,11 +33,7 @@ def compute_recall_at_k(model, graph, k=10, num_eval_users=100):
     user_indices = torch.randperm(graph["user"].num_nodes)[:num_eval_users]
 
     # Create node indices dict
-    x_dict = {
-        "user": torch.arange(graph["user"].num_nodes, dtype=torch.long),
-        "song": torch.arange(graph["song"].num_nodes, dtype=torch.long),
-        "artist": torch.arange(graph["artist"].num_nodes, dtype=torch.long),
-    }
+    x_dict = create_node_indices(graph)
 
     with torch.no_grad():
         # Get embeddings
