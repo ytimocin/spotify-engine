@@ -73,7 +73,7 @@ graph.pt (heterogeneous graph with 3 node types)
 ```text
 graph.pt
       ↓
-┌─────────────┬──────────────┐
+┌─────────────┬───────────────┐
 │SimpleTrainer│AdvancedTrainer│
 └──────┬──────┴───────┬───────┘
        │              │
@@ -186,10 +186,13 @@ make quality
 - [Training Guide](docs/technical/training.md)
 - [Trainer Architecture](docs/technical/trainers.md)
 - [Evaluation Metrics](docs/evaluation.md)
+- [Future Enhancements](docs/future/)
 
 ## Next Steps
 
-- Add real music data (currently using synthetic)
-- Add audio features and genre information
-- Create API endpoint for serving recommendations
-- Deploy as web application
+1. **Add Genre Features** - Improve cold-start handling ([details](docs/future/genre-features.md))
+2. **Model Versioning** - Track experiments systematically
+3. **Create API Endpoint** - REST/GraphQL for serving recommendations
+4. **Add Real Music Data** - Replace synthetic data with actual datasets
+
+See [Future Enhancements](docs/future/) for the complete roadmap.
