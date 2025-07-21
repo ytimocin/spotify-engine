@@ -9,6 +9,13 @@ help:
 	@echo "  make install        - Install core dependencies"
 	@echo "  make dev-install    - Install development tools (formatters, linters)"
 	@echo ""
+	@echo "Data Generation:"
+	@echo "  make generate       - Generate synthetic data with default settings"
+	@echo "  make generate-small - Generate small dataset (100 users)"
+	@echo "  make generate-large - Generate large dataset (5000 users)"
+	@echo "  make profile        - Generate data profile visualizations"
+	@echo "  make benchmark      - Run performance benchmarks"
+	@echo ""
 	@echo "Main Pipeline:"
 	@echo "  make data           - Generate synthetic data and build graph"
 	@echo "  make train          - Train the GAT model (basic)"
@@ -25,9 +32,10 @@ help:
 	@echo "  make type-check     - Run mypy type checking"
 	@echo "  make quality        - Run all quality checks"
 	@echo "  make fix            - Auto-fix code issues"
+	@echo "  make validate-config- Validate YAML configuration files"
 	@echo ""
 	@echo "Other:"
-	@echo "  make test           - Run tests (when implemented)"
+	@echo "  make test           - Run tests"
 	@echo "  make clean          - Remove generated files and cache"
 	@echo "  make clean-all      - Remove everything including venv"
 
@@ -46,6 +54,19 @@ install:
 	pip install -r requirements.txt
 	pip install torch-geometric
 	@echo "Dependencies installed successfully!"
+
+# Generate data with different sizes
+generate:
+	@echo "Generating synthetic data with default settings..."
+	python scripts/generate_synthetic_data.py --users 1000 --songs 5000 --artists 500
+
+generate-small:
+	@echo "Generating small synthetic dataset..."
+	python scripts/generate_synthetic_data.py --users 100 --songs 500 --artists 50 --days 7
+
+generate-large:
+	@echo "Generating large synthetic dataset..."
+	python scripts/generate_synthetic_data.py --users 5000 --songs 10000 --artists 1000
 
 # Generate data and build graph
 data:
@@ -88,6 +109,22 @@ test-model:
 compare-models:
 	@echo "Comparing all trained models..."
 	python -m src.test_model --compare
+
+# Run performance benchmarks
+benchmark:
+	@echo "Running performance benchmarks..."
+	python scripts/benchmark_performance.py --small --runs 3
+
+# Generate data profile report
+profile:
+	@echo "Generating data profile report..."
+	python scripts/visualize_data_profile.py
+	@echo "Profile report saved to data/profile_report/"
+
+# Validate configuration file
+validate-config:
+	@echo "Validating configuration file..."
+	python scripts/validate_config.py config/default.yaml
 
 # Run unit tests
 test:
@@ -151,6 +188,8 @@ clean:
 	rm -rf *.egg-info dist/ build/
 	rm -f data/*.csv data/*.parquet data/*.pt data/*.json
 	rm -f models/*.ckpt models/*.pt models/*.json
+	rm -rf data/profile_report/
+	rm -f benchmark_results_*.json
 	find . -type f -name "*.pyc" -delete
 	find . -type f -name "*.pyo" -delete
 	find . -type f -name "*~" -delete

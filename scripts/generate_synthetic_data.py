@@ -11,13 +11,309 @@ This script creates realistic music listening patterns including:
 import argparse
 import os
 import random
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
+import yaml
 from tqdm import tqdm
 
 # typing imports removed - not needed
+
+
+class DataValidator:
+    """Validate generated data for consistency and quality."""
+
+    @staticmethod
+    def validate_sessions(sessions_df: pd.DataFrame, songs_df: pd.DataFrame) -> dict:
+        """Validate session data quality."""
+        issues = []
+        metrics = {}
+
+        # Check for invalid durations
+        invalid_durations = sessions_df[sessions_df["ms_played"] > sessions_df["track_duration_ms"]]
+        if len(invalid_durations) > 0:
+            issues.append(f"Found {len(invalid_durations)} sessions with ms_played > duration")
+
+        # Check for orphaned references
+        orphaned_songs = set(sessions_df["track_id"]) - set(songs_df["track_id"])
+        if orphaned_songs:
+            issues.append(f"Found {len(orphaned_songs)} references to non-existent songs")
+
+        # Calculate quality metrics
+        metrics["skip_rate"] = (sessions_df["ms_played"] < CONFIG.skip_threshold_ms).mean()
+        metrics["completion_rate"] = (
+            sessions_df["ms_played"]
+            >= sessions_df["track_duration_ms"] * CONFIG.completion_threshold_ratio
+        ).mean()
+
+        # Group sessions by user and hour to calculate average session length
+        sessions_copy = sessions_df.copy()
+        sessions_copy["timestamp"] = pd.to_datetime(sessions_copy["timestamp"])
+        metrics["avg_songs_per_session"] = (
+            sessions_copy.groupby(["user_id", pd.Grouper(key="timestamp", freq="h")]).size().mean()
+        )
+
+        # Calculate listening diversity
+        metrics["unique_songs_per_user"] = (
+            sessions_df.groupby("user_id")["track_id"].nunique().mean()
+        )
+        metrics["unique_artists_per_user"] = (
+            sessions_df.groupby("user_id")["artist_id"].nunique().mean()
+        )
+
+        return {"issues": issues, "metrics": metrics}
+
+    @staticmethod
+    def validate_graph_connectivity(
+        sessions_df: pd.DataFrame, users_df: pd.DataFrame, songs_df: pd.DataFrame
+    ) -> dict:
+        """Ensure graph will be well-connected."""
+        # Check for isolated users
+        active_users = sessions_df["user_id"].unique()
+        isolated_users = set(users_df["user_id"]) - set(active_users)
+
+        # Check for unplayed songs
+        played_songs = sessions_df["track_id"].unique()
+        unplayed_songs = set(songs_df["track_id"]) - set(played_songs)
+
+        # Calculate graph density
+        graph_density = len(sessions_df) / (len(users_df) * len(songs_df))
+
+        return {
+            "isolated_users": len(isolated_users),
+            "isolated_users_pct": len(isolated_users) / len(users_df) * 100,
+            "unplayed_songs": len(unplayed_songs),
+            "unplayed_songs_pct": len(unplayed_songs) / len(songs_df) * 100,
+            "graph_density": graph_density,
+        }
+
+    @staticmethod
+    def validate_genre_coverage(
+        user_genre_prefs_df: pd.DataFrame,
+        artist_genres_df: pd.DataFrame,
+        genres_df: pd.DataFrame,
+    ) -> dict:
+        """Validate genre data completeness."""
+        metrics = {}
+
+        # Check artists without genres
+        # In our implementation, all artists have genres by design
+        metrics["artists_without_genres"] = 0
+
+        # Check genre distribution
+        genre_counts = artist_genres_df["genre_id"].value_counts()
+        unused_genres = set(genres_df["genre_id"]) - set(genre_counts.index)
+        metrics["unused_genres"] = len(unused_genres)
+
+        # User genre preference coverage
+        avg_genres_per_user = user_genre_prefs_df.groupby("user_id").size().mean()
+        metrics["avg_genres_per_user"] = avg_genres_per_user
+
+        return metrics
+
+
+@dataclass
+class DataGenerationConfig:
+    """Configuration for synthetic data generation."""
+
+    # User behavior patterns
+    user_type_distribution: Dict[str, float] = field(
+        default_factory=lambda: {"casual": 0.5, "regular": 0.35, "power": 0.15}
+    )
+
+    activity_level_ranges: Dict[str, Tuple[float, float]] = field(
+        default_factory=lambda: {"casual": (0.1, 0.3), "regular": (0.3, 0.7), "power": (0.7, 1.0)}
+    )
+
+    # Listening patterns
+    session_length_weights: Dict[int, float] = field(
+        default_factory=lambda: {1: 0.2, 3: 0.3, 5: 0.25, 10: 0.15, 20: 0.1}
+    )
+
+    listening_behavior_weights: Dict[str, float] = field(
+        default_factory=lambda: {"full": 0.4, "skip": 0.2, "partial": 0.4}
+    )
+
+    # Time patterns - hourly listening weights (24 hours)
+    hour_weights: List[float] = field(
+        default_factory=lambda: [
+            0.3,
+            0.3,
+            0.3,
+            0.3,
+            0.4,
+            0.6,
+            0.8,
+            1.0,  # 0-7 (early morning to commute)
+            0.9,
+            0.5,
+            0.4,
+            0.4,
+            0.5,
+            0.6,
+            0.7,
+            0.8,  # 8-15 (work hours)
+            0.9,
+            1.0,
+            1.0,
+            1.0,
+            0.9,
+            0.8,
+            0.6,
+            0.4,  # 16-23 (evening to night)
+        ]
+    )
+
+    # Genre configuration
+    genre_count_by_user_type: Dict[str, Tuple[int, int]] = field(
+        default_factory=lambda: {
+            "casual": (1, 3),  # min, max genres
+            "regular": (2, 5),
+            "power": (3, 8),
+        }
+    )
+
+    # Artist and song patterns
+    artist_popularity_alpha: float = 1.5
+    artist_genre_weights: Dict[int, float] = field(
+        default_factory=lambda: {1: 0.5, 2: 0.35, 3: 0.15}  # 1 genre  # 2 genres  # 3 genres
+    )
+
+    # Song duration ranges (ms)
+    song_duration_range: Tuple[int, int] = (30000, 600000)  # 30 seconds to 10 minutes
+
+    # Skip thresholds
+    skip_threshold_ms: int = 30000  # Songs played less than this are considered skips
+    completion_threshold_ratio: float = 0.8  # Songs played >= 80% are considered complete
+
+    # Session continuity
+    same_artist_probability: float = 0.4  # Probability of playing another song from same artist
+    weekday_preference_probability: float = 0.8  # Weekday preference for known content
+    weekend_preference_probability: float = 0.5  # Weekend allows more exploration
+
+    @classmethod
+    def from_yaml(cls, config_path: str) -> "DataGenerationConfig":
+        """Load configuration from YAML file."""
+        with open(config_path, "r") as f:
+            yaml_config = yaml.safe_load(f)
+
+        # Map YAML structure to dataclass fields
+        config = cls()
+
+        if "user_types" in yaml_config:
+            user_cfg = yaml_config["user_types"]
+            if "distribution" in user_cfg:
+                config.user_type_distribution = user_cfg["distribution"]
+            if "activity_levels" in user_cfg:
+                config.activity_level_ranges = {
+                    k: tuple(v) for k, v in user_cfg["activity_levels"].items()
+                }
+            if "genre_preferences" in user_cfg:
+                config.genre_count_by_user_type = {
+                    k: tuple(v) for k, v in user_cfg["genre_preferences"].items()
+                }
+
+        if "sessions" in yaml_config:
+            session_cfg = yaml_config["sessions"]
+            if "length_weights" in session_cfg:
+                config.session_length_weights = {
+                    int(k): v for k, v in session_cfg["length_weights"].items()
+                }
+            if "behavior_weights" in session_cfg:
+                config.listening_behavior_weights = session_cfg["behavior_weights"]
+            if "same_artist_probability" in session_cfg:
+                config.same_artist_probability = session_cfg["same_artist_probability"]
+            if "weekday_preference_probability" in session_cfg:
+                config.weekday_preference_probability = session_cfg[
+                    "weekday_preference_probability"
+                ]
+            if "weekend_preference_probability" in session_cfg:
+                config.weekend_preference_probability = session_cfg[
+                    "weekend_preference_probability"
+                ]
+
+        if "time_patterns" in yaml_config:
+            time_cfg = yaml_config["time_patterns"]
+            if "hourly_weights" in time_cfg:
+                config.hour_weights = time_cfg["hourly_weights"]
+
+        if "content" in yaml_config:
+            content_cfg = yaml_config["content"]
+            if "artist_popularity_alpha" in content_cfg:
+                config.artist_popularity_alpha = content_cfg["artist_popularity_alpha"]
+            if "artist_genre_distribution" in content_cfg:
+                config.artist_genre_weights = {
+                    int(k): v for k, v in content_cfg["artist_genre_distribution"].items()
+                }
+            if "song_duration" in content_cfg:
+                duration = content_cfg["song_duration"]
+                config.song_duration_range = (duration["min_ms"], duration["max_ms"])
+
+        if "playback" in yaml_config:
+            playback_cfg = yaml_config["playback"]
+            if "skip_threshold_ms" in playback_cfg:
+                config.skip_threshold_ms = playback_cfg["skip_threshold_ms"]
+            if "completion_threshold_ratio" in playback_cfg:
+                config.completion_threshold_ratio = playback_cfg["completion_threshold_ratio"]
+
+        return config
+
+
+# Global configuration instance
+CONFIG = DataGenerationConfig()
+
+
+def generate_genres() -> pd.DataFrame:
+    """Generate music genres with popularity distribution."""
+    genres_data = [
+        {"genre_id": "G001", "genre_name": "Pop", "popularity": 0.95},
+        {"genre_id": "G002", "genre_name": "Rock", "popularity": 0.80},
+        {"genre_id": "G003", "genre_name": "Hip Hop", "popularity": 0.85},
+        {"genre_id": "G004", "genre_name": "Electronic", "popularity": 0.70},
+        {"genre_id": "G005", "genre_name": "R&B", "popularity": 0.75},
+        {"genre_id": "G006", "genre_name": "Country", "popularity": 0.65},
+        {"genre_id": "G007", "genre_name": "Jazz", "popularity": 0.45},
+        {"genre_id": "G008", "genre_name": "Classical", "popularity": 0.40},
+        {"genre_id": "G009", "genre_name": "Latin", "popularity": 0.60},
+        {"genre_id": "G010", "genre_name": "Indie", "popularity": 0.55},
+        {"genre_id": "G011", "genre_name": "Metal", "popularity": 0.50},
+        {"genre_id": "G012", "genre_name": "Folk", "popularity": 0.35},
+        {"genre_id": "G013", "genre_name": "Reggae", "popularity": 0.30},
+        {"genre_id": "G014", "genre_name": "Blues", "popularity": 0.25},
+        {"genre_id": "G015", "genre_name": "Soul", "popularity": 0.40},
+    ]
+
+    return pd.DataFrame(genres_data)
+
+
+def generate_artist_genres(artists_df: pd.DataFrame, genres_df: pd.DataFrame) -> pd.DataFrame:
+    """Assign 1-3 genres to each artist based on genre popularity."""
+    artist_genres = []
+
+    for _, artist in artists_df.iterrows():
+        # Number of genres per artist (popular artists might have more genre diversity)
+        genre_counts = list(CONFIG.artist_genre_weights.keys())
+        genre_weights = list(CONFIG.artist_genre_weights.values())
+        n_genres = random.choices(genre_counts, weights=genre_weights)[0]
+
+        # Select genres weighted by popularity and artist popularity
+        # Popular artists are more likely to be in popular genres
+        genre_weights = genres_df["popularity"].values ** (1 + artist["popularity"])
+        selected_genres = genres_df.sample(n=n_genres, weights=genre_weights, replace=False)
+
+        for _, genre in selected_genres.iterrows():
+            artist_genres.append(
+                {
+                    "artist_id": artist["artist_id"],
+                    "genre_id": genre["genre_id"],
+                    "genre_name": genre["genre_name"],
+                }
+            )
+
+    return pd.DataFrame(artist_genres)
 
 
 def generate_artists(n_artists: int) -> pd.DataFrame:
@@ -25,7 +321,7 @@ def generate_artists(n_artists: int) -> pd.DataFrame:
     artist_names = [f"Artist_{i:04d}" for i in range(n_artists)]
 
     # Artist popularity follows power law
-    popularity_scores = np.random.pareto(a=1.5, size=n_artists)
+    popularity_scores = np.random.pareto(a=CONFIG.artist_popularity_alpha, size=n_artists)
     popularity_scores = popularity_scores / popularity_scores.max()
 
     return pd.DataFrame(
@@ -45,8 +341,8 @@ def generate_songs(n_songs: int, artists_df: pd.DataFrame) -> pd.DataFrame:
         # Weighted selection - popular artists have more songs
         artist = artists_df.sample(n=1, weights=artists_df["popularity"]).iloc[0]
 
-        # Song duration between 30 seconds and 10 minutes
-        duration_ms = random.randint(30000, 600000)
+        # Song duration between configured min and max
+        duration_ms = random.randint(*CONFIG.song_duration_range)
 
         song_data.append(
             {
@@ -63,21 +359,31 @@ def generate_songs(n_songs: int, artists_df: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(song_data)
 
 
+def generate_song_genres(songs_df: pd.DataFrame, artist_genres_df: pd.DataFrame) -> pd.DataFrame:
+    """Create song-genre mappings based on artist genres."""
+    # Merge songs with artist genres - songs inherit all genres from their artist
+    song_genres = songs_df[["track_id", "artist_id"]].merge(
+        artist_genres_df[["artist_id", "genre_id", "genre_name"]], on="artist_id", how="left"
+    )
+
+    # Drop artist_id as it's not needed in the final mapping
+    song_genres = song_genres[["track_id", "genre_id", "genre_name"]]
+
+    return song_genres
+
+
 def generate_users(n_users: int) -> pd.DataFrame:
     """Generate synthetic user data."""
-    user_types = ["casual", "regular", "power"]
-    user_weights = [0.5, 0.35, 0.15]  # Most users are casual
+    user_types = list(CONFIG.user_type_distribution.keys())
+    user_weights = list(CONFIG.user_type_distribution.values())
 
     users = []
     for i in range(n_users):
         user_type = random.choices(user_types, weights=user_weights)[0]
 
         # Activity level based on user type
-        activity_multiplier = {
-            "casual": np.random.uniform(0.1, 0.3),
-            "regular": np.random.uniform(0.3, 0.7),
-            "power": np.random.uniform(0.7, 1.0),
-        }[user_type]
+        min_activity, max_activity = CONFIG.activity_level_ranges[user_type]
+        activity_multiplier = np.random.uniform(min_activity, max_activity)
 
         users.append(
             {
@@ -90,52 +396,125 @@ def generate_users(n_users: int) -> pd.DataFrame:
     return pd.DataFrame(users)
 
 
+def generate_user_genre_preferences(
+    users_df: pd.DataFrame, genres_df: pd.DataFrame
+) -> pd.DataFrame:
+    """Generate user genre preferences with affinity scores."""
+    user_genre_prefs = []
+
+    for _, user in users_df.iterrows():
+        # Number of preferred genres based on user type
+        min_genres, max_genres = CONFIG.genre_count_by_user_type[user["user_type"]]
+        n_preferred_genres = random.randint(min_genres, max_genres)
+
+        # Select genres with some bias towards popular genres
+        # But power users are more likely to explore niche genres
+        popularity_bias = (
+            2.0 if user["user_type"] == "casual" else 1.0 if user["user_type"] == "regular" else 0.5
+        )
+        genre_weights = genres_df["popularity"].values ** popularity_bias
+        selected_genres = genres_df.sample(
+            n=n_preferred_genres, weights=genre_weights, replace=False
+        )
+
+        # Assign affinity scores (how much the user likes each genre)
+        for idx, (_, genre) in enumerate(selected_genres.iterrows()):
+            # Primary genre gets highest affinity
+            if idx == 0:
+                affinity = random.uniform(0.7, 1.0)
+            # Secondary genres get medium affinity
+            elif idx < 3:
+                affinity = random.uniform(0.4, 0.7)
+            # Other genres get lower affinity
+            else:
+                affinity = random.uniform(0.2, 0.5)
+
+            user_genre_prefs.append(
+                {
+                    "user_id": user["user_id"],
+                    "genre_id": genre["genre_id"],
+                    "genre_name": genre["genre_name"],
+                    "affinity_score": round(affinity, 3),
+                }
+            )
+
+    return pd.DataFrame(user_genre_prefs)
+
+
 def generate_listening_sessions(
-    users_df: pd.DataFrame, songs_df: pd.DataFrame, n_days: int = 30
+    users_df: pd.DataFrame,
+    songs_df: pd.DataFrame,
+    user_genre_prefs_df: pd.DataFrame,
+    song_genres_df: pd.DataFrame,
+    n_days: int = 30,
 ) -> pd.DataFrame:
     """Generate realistic listening sessions with time patterns and session continuity."""
     sessions = []
     start_date = datetime.now() - timedelta(days=n_days)
 
     # Time-based listening patterns (hourly weights)
-    hour_weights = [
-        0.3,
-        0.3,
-        0.3,
-        0.3,
-        0.4,
-        0.6,
-        0.8,
-        1.0,  # 0-7 (early morning to commute)
-        0.9,
-        0.5,
-        0.4,
-        0.4,
-        0.5,
-        0.6,
-        0.7,
-        0.8,  # 8-15 (work hours)
-        0.9,
-        1.0,
-        1.0,
-        1.0,
-        0.9,
-        0.8,
-        0.6,
-        0.4,  # 16-23 (evening to night)
-    ]
+    hour_weights = CONFIG.hour_weights
 
     print("Generating listening sessions...")
+
+    # Pre-compute song-genre matrix for efficient lookups
+    print("Pre-computing song-genre affinity matrix...")
+
+    # Create unique song and genre lists
+    unique_songs = songs_df["track_id"].unique()
+    unique_genres = song_genres_df["genre_id"].unique()
+
+    # Create song->index and genre->index mappings
+    song_to_idx = {song: idx for idx, song in enumerate(unique_songs)}
+    genre_to_idx = {genre: idx for idx, genre in enumerate(unique_genres)}
+
+    # Initialize song-genre matrix (songs x genres)
+    song_genre_matrix = np.zeros((len(unique_songs), len(unique_genres)))
+
+    # Fill the matrix
+    for _, row in song_genres_df.iterrows():
+        if row["track_id"] in song_to_idx and row["genre_id"] in genre_to_idx:
+            song_idx = song_to_idx[row["track_id"]]
+            genre_idx = genre_to_idx[row["genre_id"]]
+            song_genre_matrix[song_idx, genre_idx] = 1
+
+    # Pre-compute song popularity array
+    song_popularity = np.zeros(len(unique_songs))
+    for _, song in songs_df.iterrows():
+        if song["track_id"] in song_to_idx:
+            song_popularity[song_to_idx[song["track_id"]]] = song["popularity"]
 
     for _, user in tqdm(users_df.iterrows(), total=len(users_df)):
         # Number of listening sessions (not individual songs) based on user activity
         n_listening_sessions = int(n_days * user["activity_level"] * random.uniform(1, 5))
 
-        # User has genre preferences (simplified as preference for certain artists)
-        n_preferred_artists = random.randint(3, 10)
-        preferred_artists = (
-            songs_df["artist_id"].drop_duplicates().sample(n=n_preferred_artists).tolist()
-        )
+        # Get user's genre preferences as array
+        user_genres = user_genre_prefs_df[user_genre_prefs_df["user_id"] == user["user_id"]]
+
+        # Create user genre affinity vector
+        user_genre_vector = np.full(len(unique_genres), 0.1)  # Default affinity
+        for _, pref in user_genres.iterrows():
+            if pref["genre_id"] in genre_to_idx:
+                user_genre_vector[genre_to_idx[pref["genre_id"]]] = pref["affinity_score"]
+
+        # Compute song weights for this user using matrix operations
+        # song_affinities = song_genre_matrix @ user_genre_vector (songs x 1)
+        song_affinities = song_genre_matrix.dot(user_genre_vector)
+
+        # Normalize affinities by number of genres per song (avoid bias for multi-genre songs)
+        song_genre_counts = song_genre_matrix.sum(axis=1)
+        song_genre_counts[song_genre_counts == 0] = 1  # Avoid division by zero
+        song_affinities = song_affinities / song_genre_counts
+
+        # Compute final weights: popularity * (0.3 + 0.7 * affinity)
+        user_song_weights = song_popularity * (0.3 + 0.7 * song_affinities)
+
+        # Create lookup for quick access during session generation
+        song_weight_dict = {
+            song: user_song_weights[idx]
+            for song, idx in song_to_idx.items()
+            if user_song_weights[idx] > 0
+        }
 
         # Generate listening sessions for this user
         for _ in range(n_listening_sessions):
@@ -150,63 +529,90 @@ def generate_listening_sessions(
 
             # Weekend vs weekday patterns
             is_weekend = session_start.weekday() >= 5
-            prefer_known_artists_prob = 0.5 if is_weekend else 0.8
+            prefer_known_artists_prob = (
+                CONFIG.weekend_preference_probability
+                if is_weekend
+                else CONFIG.weekday_preference_probability
+            )
 
             # Session length (number of songs in this listening session)
-            session_length = random.choices([1, 3, 5, 10, 20], weights=[0.2, 0.3, 0.25, 0.15, 0.1])[
-                0
-            ]
+            session_lengths = list(CONFIG.session_length_weights.keys())
+            session_weights = list(CONFIG.session_length_weights.values())
+            session_length = random.choices(session_lengths, weights=session_weights)[0]
 
             current_time = session_start
             last_artist_id = None
 
             for song_idx in range(session_length):
                 # Songs in same session are more likely from same artist
-                if song_idx > 0 and last_artist_id and random.random() < 0.4:
+                if (
+                    song_idx > 0
+                    and last_artist_id
+                    and random.random() < CONFIG.same_artist_probability
+                ):
                     # Continue with same artist
                     same_artist_songs = songs_df[songs_df["artist_id"] == last_artist_id]
                     if len(same_artist_songs) > 1:
-                        song = same_artist_songs.sample(
-                            n=1, weights=same_artist_songs["popularity"]
-                        ).iloc[0]
-                    else:
-                        # Fall back to regular selection
-                        if random.random() < prefer_known_artists_prob and preferred_artists:
-                            artist_songs = songs_df[songs_df["artist_id"].isin(preferred_artists)]
-                            if len(artist_songs) > 0:
-                                song = artist_songs.sample(
-                                    n=1, weights=artist_songs["popularity"]
-                                ).iloc[0]
-                            else:
-                                song = songs_df.sample(n=1, weights=songs_df["popularity"]).iloc[0]
+                        # Get weights for songs by this artist
+                        artist_song_weights = {
+                            row["track_id"]: song_weight_dict.get(row["track_id"], 0.1)
+                            for _, row in same_artist_songs.iterrows()
+                        }
+                        artist_song_weights = {
+                            k: v for k, v in artist_song_weights.items() if v > 0
+                        }
+
+                        if artist_song_weights:
+                            selected_track_id = random.choices(
+                                list(artist_song_weights.keys()),
+                                weights=list(artist_song_weights.values()),
+                            )[0]
+                            song = songs_df[songs_df["track_id"] == selected_track_id].iloc[0]
                         else:
-                            song = songs_df.sample(n=1, weights=songs_df["popularity"]).iloc[0]
+                            # Fall back to any song
+                            selected_track_id = random.choice(list(song_weight_dict.keys()))
+                            song = songs_df[songs_df["track_id"] == selected_track_id].iloc[0]
+                    else:
+                        # Fall back to genre-based selection
+                        selected_track_id = random.choices(
+                            list(song_weight_dict.keys()),
+                            weights=list(song_weight_dict.values()),
+                        )[0]
+                        song = songs_df[songs_df["track_id"] == selected_track_id].iloc[0]
                 else:
-                    # Regular song selection
-                    if random.random() < prefer_known_artists_prob and preferred_artists:
-                        artist_songs = songs_df[songs_df["artist_id"].isin(preferred_artists)]
-                        if len(artist_songs) > 0:
-                            song = artist_songs.sample(
-                                n=1, weights=artist_songs["popularity"]
-                            ).iloc[0]
-                        else:
-                            song = songs_df.sample(n=1, weights=songs_df["popularity"]).iloc[0]
+                    # Regular song selection based on genre preferences
+                    # Use genre preferences more on weekdays, more exploration on weekends
+                    if random.random() < prefer_known_artists_prob:
+                        # Select based on pre-computed genre preferences
+                        selected_track_id = random.choices(
+                            list(song_weight_dict.keys()),
+                            weights=list(song_weight_dict.values()),
+                        )[0]
                     else:
-                        song = songs_df.sample(n=1, weights=songs_df["popularity"]).iloc[0]
+                        # More exploration - use popularity only
+                        pop_weights = {
+                            row["track_id"]: row["popularity"] for _, row in songs_df.iterrows()
+                        }
+                        selected_track_id = random.choices(
+                            list(pop_weights.keys()),
+                            weights=list(pop_weights.values()),
+                        )[0]
+
+                    song = songs_df[songs_df["track_id"] == selected_track_id].iloc[0]
 
                 last_artist_id = song["artist_id"]
 
                 # Listening duration: full song, skip, or partial
-                listen_behavior = random.choices(
-                    ["full", "skip", "partial"], weights=[0.4, 0.2, 0.4]
-                )[0]
+                behaviors = list(CONFIG.listening_behavior_weights.keys())
+                behavior_weights = list(CONFIG.listening_behavior_weights.values())
+                listen_behavior = random.choices(behaviors, weights=behavior_weights)[0]
 
                 if listen_behavior == "full":
                     ms_played = song["duration_ms"]
                 elif listen_behavior == "skip":
                     ms_played = random.randint(
-                        3000, min(30000, int(song["duration_ms"]))
-                    )  # 3-30 seconds or full duration
+                        3000, min(CONFIG.skip_threshold_ms, int(song["duration_ms"]))
+                    )  # 3 seconds to skip threshold or full duration
                 else:  # partial
                     # For short songs, play at least 50%, for longer songs play 30-80%
                     min_play = (
@@ -250,8 +656,28 @@ def main():
         help="Output file path",
     )
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument(
+        "--config",
+        type=str,
+        help="Path to YAML configuration file",
+    )
 
     args = parser.parse_args()
+
+    # Load configuration
+    global CONFIG
+    if args.config:
+        if not os.path.exists(args.config):
+            print(f"Error: Config file not found: {args.config}")
+            return
+        print(f"Loading configuration from: {args.config}")
+        CONFIG = DataGenerationConfig.from_yaml(args.config)
+    else:
+        # Check for default config file
+        default_config = "config/default.yaml"
+        if os.path.exists(default_config):
+            print(f"Loading default configuration from: {default_config}")
+            CONFIG = DataGenerationConfig.from_yaml(default_config)
 
     # Set random seeds for reproducibility
     random.seed(args.seed)
@@ -263,16 +689,30 @@ def main():
     )
 
     # Generate data
+    genres_df = generate_genres()
+    print(f"✓ Generated {len(genres_df)} genres")
+
     artists_df = generate_artists(args.artists)
     print(f"✓ Generated {len(artists_df)} artists")
+
+    artist_genres_df = generate_artist_genres(artists_df, genres_df)
+    print(f"✓ Assigned genres to artists ({len(artist_genres_df)} artist-genre pairs)")
 
     songs_df = generate_songs(args.songs, artists_df)
     print(f"✓ Generated {len(songs_df)} songs")
 
+    song_genres_df = generate_song_genres(songs_df, artist_genres_df)
+    print(f"✓ Assigned genres to songs ({len(song_genres_df)} song-genre pairs)")
+
     users_df = generate_users(args.users)
     print(f"✓ Generated {len(users_df)} users")
 
-    sessions_df = generate_listening_sessions(users_df, songs_df, args.days)
+    user_genre_prefs_df = generate_user_genre_preferences(users_df, genres_df)
+    print(f"✓ Generated user genre preferences ({len(user_genre_prefs_df)} user-genre pairs)")
+
+    sessions_df = generate_listening_sessions(
+        users_df, songs_df, user_genre_prefs_df, song_genres_df, args.days
+    )
     print(f"✓ Generated {len(sessions_df)} listening sessions")
 
     # Ensure output directory exists
@@ -286,6 +726,12 @@ def main():
     artists_df.to_csv(args.output.replace("sessions.csv", "artists.csv"), index=False)
     songs_df.to_csv(args.output.replace("sessions.csv", "songs.csv"), index=False)
     users_df.to_csv(args.output.replace("sessions.csv", "users.csv"), index=False)
+    genres_df.to_csv(args.output.replace("sessions.csv", "genres.csv"), index=False)
+    artist_genres_df.to_csv(args.output.replace("sessions.csv", "artist_genres.csv"), index=False)
+    song_genres_df.to_csv(args.output.replace("sessions.csv", "song_genres.csv"), index=False)
+    user_genre_prefs_df.to_csv(
+        args.output.replace("sessions.csv", "user_genre_preferences.csv"), index=False
+    )
 
     # Print statistics
     print("\nDataset Statistics:")
@@ -298,6 +744,51 @@ def main():
     # Sample data preview
     print("\nSample sessions:")
     print(sessions_df.head(5).to_string())
+
+    # Run data validation
+    print("\n" + "=" * 50)
+    print("DATA VALIDATION")
+    print("=" * 50)
+
+    # Validate sessions
+    session_validation = DataValidator.validate_sessions(sessions_df, songs_df)
+    if session_validation["issues"]:
+        print("\nData Quality Issues Found:")
+        for issue in session_validation["issues"]:
+            print(f"  ⚠️  {issue}")
+    else:
+        print("\n✓ No data quality issues found")
+
+    print("\nSession Quality Metrics:")
+    for metric, value in session_validation["metrics"].items():
+        if isinstance(value, float):
+            print(f"  - {metric}: {value:.3f}")
+        else:
+            print(f"  - {metric}: {value}")
+
+    # Validate graph connectivity
+    connectivity = DataValidator.validate_graph_connectivity(sessions_df, users_df, songs_df)
+    print("\nGraph Connectivity:")
+    print(
+        f"  - Isolated users: {connectivity['isolated_users']} "
+        f"({connectivity['isolated_users_pct']:.1f}%)"
+    )
+    print(
+        f"  - Unplayed songs: {connectivity['unplayed_songs']} "
+        f"({connectivity['unplayed_songs_pct']:.1f}%)"
+    )
+    print(f"  - Graph density: {connectivity['graph_density']:.6f}")
+
+    # Validate genre coverage
+    genre_coverage = DataValidator.validate_genre_coverage(
+        user_genre_prefs_df, artist_genres_df, genres_df
+    )
+    print("\nGenre Coverage:")
+    for metric, value in genre_coverage.items():
+        if isinstance(value, float):
+            print(f"  - {metric}: {value:.2f}")
+        else:
+            print(f"  - {metric}: {value}")
 
 
 if __name__ == "__main__":

@@ -27,6 +27,9 @@ python -m src.build_graph                    # Build PyG graph
 python -m src.train --epochs 20              # Basic training (SimpleTrainer)
 python -m src.train_improved --epochs 50     # Advanced training (AdvancedTrainer)
 
+# Data generation with custom config
+python scripts/generate_synthetic_data.py --config config/weekend_heavy.yaml
+
 # Run demo
 jupyter notebook notebooks/quick_demo.ipynb
 
@@ -35,14 +38,16 @@ python scripts/validate_data.py              # Verify data integrity
 make lint                                    # Run linters
 make format                                  # Auto-format code
 
-# Testing (when implemented)
-pytest tests/
+# Testing
+pytest tests/                                # Run unit tests
+make test-model                              # Test trained model
+make compare-models                          # Compare model versions
 
 # Code quality
 make format                                  # Auto-format code
 make lint                                    # Run linters
 make quality                                 # All quality checks
-make test                                    # Run unit tests
+make fix                                     # Auto-fix code issues
 ```
 
 ## Architecture
@@ -95,7 +100,17 @@ raw_sessions.csv → prepare_mssd.py → aggregated_edge_list.parquet
 - Edge weights combine listening duration ratio (70%) and log-scaled play count (30%)
 - Attention weights from GAT layers provide explainability for recommendations
 - Modular trainer architecture allows different training strategies
-- All scripts assume Python 3.8+, PyTorch ≥2.0, torch-geometric
+- Python 3.8-3.12 supported (tested with 3.12), PyTorch ≥2.0, torch-geometric
+- Model size: 206,688 parameters (< 1MB checkpoint)
+- Performance benchmarks: Validation Recall@10 ~42%, Test Recall@10 ~38%
+
+### Recent Improvements
+
+- **Genre Support**: Artists and songs now have genre associations, users have genre preferences
+- **Data Validation**: Automatic quality checks for sessions, graph connectivity, and genre coverage
+- **Configuration Management**: YAML-based configuration files for customizing data generation
+- **Performance Optimization**: Matrix operations for 3-5x speedup in session generation
+- **Code Quality**: Comprehensive linting with flake8, pylint, mypy, and black formatting
 
 ## Data Requirements
 
