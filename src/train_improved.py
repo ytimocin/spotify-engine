@@ -13,59 +13,17 @@ Features:
 import argparse
 import json
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 import numpy as np
 import torch
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
+from src.data_utils import split_edges_by_user
+from src.losses import bpr_loss
+from src.metrics import evaluate_batch
 from src.models.gat_recommender import GATRecommender
 from src.utils import create_node_indices
-
-
-def split_edges(
-    edge_index: torch.Tensor, val_ratio: float = 0.15, test_ratio: float = 0.15
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Split edges into train/val/test sets ensuring each user has edges in all splits."""
-    num_edges = edge_index.shape[1]
-
-    # Group edges by user
-    user_edges: Dict[int, List[int]] = {}
-    for i in range(num_edges):
-        user = int(edge_index[0, i].item())
-        if user not in user_edges:
-            user_edges[user] = []
-        user_edges[user].append(i)
-
-    train_mask = torch.zeros(num_edges, dtype=torch.bool)
-    val_mask = torch.zeros(num_edges, dtype=torch.bool)
-    test_mask = torch.zeros(num_edges, dtype=torch.bool)
-
-    # Split each user's edges
-    for _, edges in user_edges.items():
-        if len(edges) < 3:  # Skip users with too few edges
-            train_mask[edges] = True
-            continue
-
-        # Shuffle user's edges
-        np.random.shuffle(edges)
-
-        # Calculate split sizes
-        n_val = max(1, int(len(edges) * val_ratio))
-        n_test = max(1, int(len(edges) * test_ratio))
-        n_train = len(edges) - n_val - n_test
-
-        # Assign to splits
-        train_mask[edges[:n_train]] = True
-        val_mask[edges[n_train : n_train + n_val]] = True
-        test_mask[edges[n_train + n_val :]] = True
-
-    return train_mask, val_mask, test_mask
-
-
-def bpr_loss(pos_scores: torch.Tensor, neg_scores: torch.Tensor) -> torch.Tensor:
-    """Bayesian Personalized Ranking loss."""
-    return -torch.log(torch.sigmoid(pos_scores - neg_scores) + 1e-8).mean()
 
 
 def compute_metrics(
@@ -97,59 +55,22 @@ def compute_metrics(
     # Create node indices dict
     x_dict = create_node_indices(graph)
 
-    recalls = []
-    ndcgs = []
-
+    # Get embeddings once
     with torch.no_grad():
-        # Get embeddings
         embeddings = model(x_dict, graph)
 
-        for user_idx in eval_users:
-            # Get user's true interactions from evaluation set
-            user_mask = edge_index[0] == user_idx
-            user_songs = edge_index[1][user_mask].unique()
+    # Build interactions dict for evaluate_batch
+    interactions = {}
+    for user_idx in eval_users:
+        user_mask = edge_index[0] == user_idx
+        user_songs = edge_index[1][user_mask].unique()
+        if len(user_songs) >= 2:  # Only include users with enough interactions
+            interactions[user_idx.item()] = set(user_songs.tolist())
 
-            if len(user_songs) < 2:  # Skip users with too few interactions
-                continue
-
-            # Get recommendations
-            user_emb = embeddings["user"][user_idx]
-            song_embs = embeddings["song"]
-            scores = torch.matmul(song_embs, user_emb)
-
-            # # For validation/test, we should exclude training items
-            # # But for now, let's skip this to debug
-            # all_edge_index = graph["user", "listens", "song"].edge_index
-            # train_edge_index = all_edge_index[:, ~edge_mask]  # Get training edges
-            # train_user_mask = train_edge_index[0] == user_idx
-            # if train_user_mask.any():
-            #     train_songs = train_edge_index[1][train_user_mask].unique()
-            #     scores[train_songs] = -float('inf')
-
-            # Get top-k
-            _, top_k_songs = torch.topk(scores, k)
-
-            # Compute recall
-            hits = torch.isin(top_k_songs, user_songs).sum().item()
-            recall = hits / min(k, len(user_songs))
-            recalls.append(recall)
-
-            # Compute NDCG
-            dcg = 0.0
-            for i, song in enumerate(top_k_songs):
-                if song in user_songs:
-                    dcg += 1.0 / np.log2(i + 2)  # i+2 because i starts at 0
-
-            # Ideal DCG
-            ideal_dcg = sum(1.0 / np.log2(i + 2) for i in range(min(k, len(user_songs))))
-
-            ndcg = dcg / ideal_dcg if ideal_dcg > 0 else 0.0
-            ndcgs.append(ndcg)
-
-    return {
-        "recall@10": float(np.mean(recalls)) if recalls else 0.0,
-        "ndcg@10": float(np.mean(ndcgs)) if ndcgs else 0.0,
-    }
+    # Use our modular evaluate_batch function
+    return evaluate_batch(
+        embeddings["user"], embeddings["song"], interactions, k=k, metrics=["recall", "ndcg"]
+    )
 
 
 def train_epoch(
@@ -258,7 +179,9 @@ def main():
     )
 
     edge_index = graph["user", "listens", "song"].edge_index
-    train_mask, val_mask, test_mask = split_edges(edge_index, args.val_split, args.test_split)
+    train_mask, val_mask, test_mask = split_edges_by_user(
+        edge_index, val_ratio=args.val_split, test_ratio=args.test_split, random_state=42
+    )
 
     print(f"Train edges: {train_mask.sum():,}")
     print(f"Val edges: {val_mask.sum():,}")

@@ -15,13 +15,10 @@ from typing import Dict, List
 import numpy as np
 import torch
 
+from src.losses import bpr_loss
+from src.metrics import recall_at_k
 from src.models.gat_recommender import GATRecommender
 from src.utils import create_node_indices
-
-
-def bpr_loss(pos_scores, neg_scores):
-    """Bayesian Personalized Ranking loss."""
-    return -torch.log(torch.sigmoid(pos_scores - neg_scores) + 1e-8).mean()
 
 
 def compute_recall_at_k(model, graph, k=10, num_eval_users=100):
@@ -55,9 +52,9 @@ def compute_recall_at_k(model, graph, k=10, num_eval_users=100):
             # Get top-k
             _, top_k_songs = torch.topk(scores, k)
 
-            # Compute recall
-            hits = len(set(top_k_songs.tolist()) & set(user_songs.tolist()))
-            recall = hits / min(k, len(user_songs))
+            # Compute recall using our metric function
+            relevant = set(user_songs.tolist())
+            recall = recall_at_k(top_k_songs, relevant, k)
             recalls.append(recall)
 
     return np.mean(recalls) if recalls else 0.0
@@ -66,7 +63,7 @@ def compute_recall_at_k(model, graph, k=10, num_eval_users=100):
 def train_epoch(model, graph, optimizer, batch_size=512):
     """Train one epoch."""
     model.train()
-    total_loss = 0
+    total_loss = 0.0
     num_batches = 0
 
     # Get edge data

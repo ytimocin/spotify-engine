@@ -89,10 +89,10 @@ compare-models:
 	@echo "Comparing all trained models..."
 	python -m src.test_model --compare
 
-# Run tests (placeholder)
+# Run unit tests
 test:
-	@echo "Tests not yet implemented"
-	# pytest tests/
+	@echo "Running unit tests..."
+	pytest tests/ -v --cov=src --cov-report=html --cov-report=term
 
 # Install development dependencies
 dev-install:
