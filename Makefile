@@ -59,17 +59,17 @@ data:
 	python -m src.build_graph
 	@echo "Data pipeline complete!"
 
-# Train model (original)
+# Train model with SimpleTrainer
 train:
-	@echo "Training GAT model..."
-	python -m src.train --epochs 20
-	@echo "Training complete! Check models/model.ckpt"
+	@echo "Training GAT model with SimpleTrainer..."
+	python -m src.train --epochs 20 --output-dir models
+	@echo "Training complete! Check models/simple/"
 
-# Train with improved pipeline (recommended)
+# Train with AdvancedTrainer (recommended)
 train-improved:
-	@echo "Training GAT model with improved pipeline..."
-	python -m src.train_improved --epochs 50 --patience 5
-	@echo "Training complete! Check models/model_improved.ckpt"
+	@echo "Training GAT model with AdvancedTrainer..."
+	python -m src.train_improved --epochs 50 --patience 5 --use-scheduler --output-dir models
+	@echo "Training complete! Check models/advanced/"
 
 # Quick training (fewer epochs)
 train-quick:

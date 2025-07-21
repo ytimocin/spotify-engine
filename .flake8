@@ -23,7 +23,9 @@ ignore =
     D100,
     D104,
     D105,
-    D107
+    D107,
+    D401,
+    B027
 per-file-ignores =
     __init__.py:F401,D104
     test_*.py:D100,D101,D102,D103

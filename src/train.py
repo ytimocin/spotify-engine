@@ -1,186 +1,85 @@
 """
-Train GAT model for music recommendations.
+Train GAT model for music recommendations using SimpleTrainer.
 
-Uses:
-- BPR (Bayesian Personalized Ranking) loss
-- Negative sampling for implicit feedback
-- Recall@10 for evaluation
+This script uses the SimpleTrainer for basic training without validation splits.
+For more advanced training with validation and early stopping, use train_improved.py.
 """
 
 import argparse
-import json
-from pathlib import Path
-from typing import Dict, List
+import logging
 
-import numpy as np
 import torch
 
-from src.losses import bpr_loss
-from src.metrics import recall_at_k
-from src.models.gat_recommender import GATRecommender
-from src.utils import create_node_indices
+from src.trainers import SimpleTrainer
 
-
-def compute_recall_at_k(model, graph, k=10, num_eval_users=100):
-    """Compute Recall@K on a sample of users."""
-    model.eval()
-    recalls = []
-
-    # Sample users for evaluation
-    user_indices = torch.randperm(graph["user"].num_nodes)[:num_eval_users]
-
-    # Create node indices dict
-    x_dict = create_node_indices(graph)
-
-    with torch.no_grad():
-        # Get embeddings
-        embeddings = model(x_dict, graph)
-
-        for user_idx in user_indices:
-            # Get user's true interactions
-            edge_index = graph["user", "listens", "song"].edge_index
-            user_songs = edge_index[1][edge_index[0] == user_idx]
-
-            if len(user_songs) < 5:  # Skip users with too few interactions
-                continue
-
-            # Get recommendations
-            user_emb = embeddings["user"][user_idx]
-            song_embs = embeddings["song"]
-            scores = torch.matmul(song_embs, user_emb)
-
-            # Get top-k
-            _, top_k_songs = torch.topk(scores, k)
-
-            # Compute recall using our metric function
-            relevant = set(user_songs.tolist())
-            recall = recall_at_k(top_k_songs, relevant, k)
-            recalls.append(recall)
-
-    return np.mean(recalls) if recalls else 0.0
-
-
-def train_epoch(model, graph, optimizer, batch_size=512):
-    """Train one epoch."""
-    model.train()
-    total_loss = 0.0
-    num_batches = 0
-
-    # Get edge data
-    edge_index = graph["user", "listens", "song"].edge_index
-    num_edges = edge_index.shape[1]
-
-    # Shuffle edges
-    perm = torch.randperm(num_edges)
-    edge_index = edge_index[:, perm]
-
-    # Create node indices
-    x_dict = {
-        "user": torch.arange(graph["user"].num_nodes, dtype=torch.long),
-        "song": torch.arange(graph["song"].num_nodes, dtype=torch.long),
-        "artist": torch.arange(graph["artist"].num_nodes, dtype=torch.long),
-    }
-
-    # Process in batches
-    for i in range(0, num_edges, batch_size):
-        batch_edges = edge_index[:, i : i + batch_size]
-
-        # Get embeddings
-        embeddings = model(x_dict, graph)
-
-        # Positive samples
-        user_indices = batch_edges[0]
-        pos_song_indices = batch_edges[1]
-
-        user_embs = embeddings["user"][user_indices]
-        pos_song_embs = embeddings["song"][pos_song_indices]
-        pos_scores = (user_embs * pos_song_embs).sum(dim=1)
-
-        # Negative sampling
-        neg_song_indices = torch.randint(0, graph["song"].num_nodes, (len(user_indices),))
-        neg_song_embs = embeddings["song"][neg_song_indices]
-        neg_scores = (user_embs * neg_song_embs).sum(dim=1)
-
-        # BPR loss
-        loss = bpr_loss(pos_scores, neg_scores)
-
-        # Backward
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        total_loss += loss.item()
-        num_batches += 1
-
-    return total_loss / num_batches
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def main():
-    """Train GAT recommender model."""
-    parser = argparse.ArgumentParser(description="Train GAT recommender")
+    """Train GAT recommender model using SimpleTrainer."""
+    parser = argparse.ArgumentParser(description="Train GAT recommender with SimpleTrainer")
+
+    # Data arguments
     parser.add_argument("--graph", type=str, default="data/graph.pt", help="Input graph file")
+
+    # Training arguments
     parser.add_argument("--epochs", type=int, default=10, help="Number of epochs")
     parser.add_argument("--lr", type=float, default=0.01, help="Learning rate")
     parser.add_argument("--batch-size", type=int, default=512, help="Batch size")
+    parser.add_argument("--eval-k", type=int, default=10, help="K for Recall@K evaluation")
     parser.add_argument(
-        "--output", type=str, default="models/model.ckpt", help="Output model checkpoint"
+        "--num-eval-users", type=int, default=100, help="Number of users for evaluation"
     )
+
+    # Model arguments
+    parser.add_argument("--embedding-dim", type=int, default=32, help="Embedding dimension")
+    parser.add_argument("--heads", type=int, default=4, help="Number of attention heads")
+
+    # Output arguments
+    parser.add_argument("--output-dir", type=str, default="models/simple", help="Output directory")
 
     args = parser.parse_args()
 
     # Load graph
-    print(f"Loading graph from: {args.graph}")
+    logger.info(f"Loading graph from: {args.graph}")
     graph = torch.load(args.graph)
 
-    # Create model
-    model = GATRecommender(
-        num_users=graph["user"].num_nodes,
-        num_songs=graph["song"].num_nodes,
-        num_artists=graph["artist"].num_nodes,
-    )
-    print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
+    # Model configuration
+    model_config = {
+        "num_users": graph["user"].num_nodes,
+        "num_songs": graph["song"].num_nodes,
+        "num_artists": graph["artist"].num_nodes,
+        "embedding_dim": args.embedding_dim,
+        "heads": args.heads,
+    }
 
-    # Optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    # Training configuration
+    training_config = {
+        "lr": args.lr,
+        "batch_size": args.batch_size,
+        "eval_k": args.eval_k,
+        "num_eval_users": args.num_eval_users,
+    }
 
-    # Training
-    print(f"\nTraining for {args.epochs} epochs...")
-    metrics: Dict[str, List[float]] = {"train_loss": [], "recall@10": []}
-
-    for epoch in range(args.epochs):
-        # Train
-        loss = train_epoch(model, graph, optimizer, args.batch_size)
-
-        # Evaluate
-        recall = compute_recall_at_k(model, graph)
-
-        metrics["train_loss"].append(loss)
-        metrics["recall@10"].append(recall)
-
-        print(f"Epoch {epoch + 1}/{args.epochs} - Loss: {loss:.4f}, Recall@10: {recall:.4f}")
-
-    # Save model
-    output_path = Path(args.output)
-    output_path.parent.mkdir(exist_ok=True)
-
-    torch.save(
-        {
-            "model_state_dict": model.state_dict(),
-            "num_users": graph["user"].num_nodes,
-            "num_songs": graph["song"].num_nodes,
-            "num_artists": graph["artist"].num_nodes,
-            "metrics": metrics,
-        },
-        output_path,
+    # Create trainer
+    trainer = SimpleTrainer(
+        model_config=model_config,
+        training_config=training_config,
+        output_dir=args.output_dir,
     )
 
-    print(f"\nSaved model to: {args.output}")
+    # Train model
+    results = trainer.train(graph, args.epochs)
 
-    # Save metrics
-    metrics_path = output_path.with_suffix(".json")
-    with open(metrics_path, "w", encoding="utf-8") as f:
-        json.dump(metrics, f, indent=2)
-    print(f"Saved metrics to: {metrics_path}")
+    # Print final results
+    logger.info("Training complete!")
+    logger.info(f"Final epoch: {results['final_epoch']}")
+    final_metrics = results["metrics_history"]
+    if "train_loss" in final_metrics:
+        logger.info(f"Final loss: {final_metrics['train_loss'][-1]:.4f}")
+    if "recall@10" in final_metrics:
+        logger.info(f"Final Recall@10: {final_metrics['recall@10'][-1]:.4f}")
 
 
 if __name__ == "__main__":
