@@ -24,7 +24,8 @@ make clean      # Remove generated files
 python scripts/generate_synthetic_data.py    # Create synthetic data
 python scripts/prepare_mssd.py               # ETL to edge list
 python -m src.build_graph                    # Build PyG graph
-python -m src.train --epochs 20              # Train model
+python -m src.train --epochs 20              # Basic training (SimpleTrainer)
+python -m src.train_improved --epochs 50     # Advanced training (AdvancedTrainer)
 
 # Run demo
 jupyter notebook notebooks/quick_demo.ipynb
@@ -37,13 +38,11 @@ make format                                  # Auto-format code
 # Testing (when implemented)
 pytest tests/
 
-# Linting and formatting
-black src/ scripts/ --line-length=100        # Format code
-isort src/ scripts/                          # Sort imports
-flake8 src/ scripts/ --max-line-length=100   # Check style
-
-# Type checking (when configured)
-mypy src/ --ignore-missing-imports
+# Code quality
+make format                                  # Auto-format code
+make lint                                    # Run linters
+make quality                                 # All quality checks
+make test                                    # Run unit tests
 ```
 
 ## Architecture
@@ -81,16 +80,22 @@ raw_sessions.csv → prepare_mssd.py → aggregated_edge_list.parquet
 
 3. **src/models/gat_recommender.py**: Single-layer GAT model with 32-dim embeddings and dot-product scoring
 
-4. **src/train.py**: Training loop using neighbor sampling, BPR loss, and Recall@10 evaluation
+4. **src/trainers/**: Modular training architecture
+   - `BaseTrainer`: Abstract base class with common functionality
+   - `SimpleTrainer`: Basic training on all data
+   - `AdvancedTrainer`: Production training with validation, early stopping, LR scheduling
 
-5. **notebooks/quick_demo.ipynb**: Interactive demonstration showing top-5 recommendations with attention coefficients
+5. **src/train.py** & **src/train_improved.py**: CLI wrappers for SimpleTrainer and AdvancedTrainer respectively
+
+6. **notebooks/quick_demo.ipynb**: Interactive demonstration showing top-5 recommendations with attention coefficients
 
 ## Implementation Notes
 
-- The system uses mini-MSSD dataset (1% sample of Spotify's Music Streaming Sessions Dataset)
+- The system uses synthetic data by default (can be replaced with real data)
 - Edge weights combine listening duration ratio (70%) and log-scaled play count (30%)
 - Attention weights from GAT layers provide explainability for recommendations
-- All scripts assume Python 3.10+, PyTorch ≥2.2, torch-geometric
+- Modular trainer architecture allows different training strategies
+- All scripts assume Python 3.8+, PyTorch ≥2.0, torch-geometric
 
 ## Data Requirements
 

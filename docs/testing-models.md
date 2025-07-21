@@ -12,8 +12,8 @@ make test-model
 
 This will:
 
-- Load the improved model (or basic model if improved doesn't exist)
-- Show test set metrics (if available)
+- Load the model (prioritizes advanced trainer output)
+- Show test set metrics (if model was trained with validation splits)
 - Display sample recommendations for 3 users
 - Show attention-based explanations
 
@@ -22,14 +22,12 @@ This will:
 ### Test Specific Model
 
 ```bash
-# Test the improved model
-python -m src.test_model --model models/model_improved.ckpt
+# Test models from different trainers
+python -m src.test_model --model models/advanced/final_model.pt  # AdvancedTrainer
+python -m src.test_model --model models/simple/final_model.pt    # SimpleTrainer
 
-# Test the basic model
-python -m src.test_model --model models/model.ckpt
-
-# Test a checkpoint
-python -m src.test_model --model models/checkpoints/best_model.ckpt
+# Test best checkpoint
+python -m src.test_model --model models/advanced/best_model.pt
 ```
 
 ### Customize Output
@@ -99,11 +97,11 @@ Influenced by your listening history:
 ### Model Comparison
 
 ```text
-Model                          Test Recall@10  Best Epoch    Final Loss
+Model                             Test Recall@10  Best Epoch    Final Loss
 --------------------------------------------------------------------------------
-model.ckpt                     N/A             N/A           0.2531
-model_improved.ckpt            0.3842          16            0.2757
-best_model.ckpt                0.3842          16            0.2757
+models/simple/final_model.pt      N/A             N/A           0.2531
+models/advanced/final_model.pt    0.3842          16            0.2757
+models/advanced/best_model.pt     0.3842          16            0.2757
 ```
 
 ## Interpreting Results
@@ -158,7 +156,7 @@ The attention weights can be visualized to understand why certain songs were rec
 
 ### "No test metrics found"
 
-This means the model was trained on all data (basic training). Use `train_improved` for proper test metrics.
+This means the model was trained with SimpleTrainer (all data, no splits). Use AdvancedTrainer for proper test metrics.
 
 ### Low Test Performance
 
@@ -171,7 +169,8 @@ This means the model was trained on all data (basic training). Use `train_improv
 Make sure you've trained a model first:
 
 ```bash
-make train-improved  # or make train
+make train           # SimpleTrainer
+make train-improved  # AdvancedTrainer
 ```
 
 ## Next Steps

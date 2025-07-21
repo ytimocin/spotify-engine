@@ -54,6 +54,8 @@ jupyter notebook notebooks/quick_demo.ipynb
 
 ## Architecture
 
+### Data Pipeline
+
 ```text
 raw_sessions.csv
       ↓
@@ -64,48 +66,69 @@ edge_list.parquet (user-song interactions with play metrics)
 build_graph.py (construct PyTorch Geometric graph)
       ↓
 graph.pt (heterogeneous graph with 3 node types)
-      ↓
-train.py (GAT model with BPR loss)
-      ↓
-model.ckpt + metrics.json
-      ↓
-quick_demo.ipynb (interactive recommendations with explanations)
 ```
 
-## Model Performance
+### Training Architecture
 
-After 20 epochs of training on synthetic data:
+```text
+graph.pt
+      ↓
+┌─────────────┬──────────────┐
+│SimpleTrainer│AdvancedTrainer│
+└──────┬──────┴───────┬───────┘
+       │              │
+       ↓              ↓
+  model.ckpt    model_improved.ckpt
+  (all data)    (with val/test splits)
+```
 
-- **Loss**: 0.6174 → 0.2497 (59% improvement)
-- **Recall@10**: 7.9% → 40.9% (5x improvement)
-- **Parameters**: 206,688 (lightweight model)
+Both trainers inherit from `BaseTrainer` and provide different training strategies:
 
-## Testing Models
+- **SimpleTrainer**: Fast training on all data, good for experiments
+- **AdvancedTrainer**: Production-ready with validation, early stopping, and LR scheduling
 
-### Test Individual Models
+## Model Training
+
+### Training Options
 
 ```bash
-# Test the basic model
+# Basic training (fast, no validation)
+make train
+
+# Advanced training (recommended for production)
+make train-improved
+```
+
+| Feature         | Basic (`make train`) | Advanced (`make train-improved`) |
+| --------------- | -------------------- | -------------------------------- |
+| Data splits     | None                 | 70/15/15 train/val/test          |
+| Early stopping  | No                   | Yes (patience=5)                 |
+| LR scheduling   | No                   | Yes (ReduceLROnPlateau)          |
+| Best model save | No                   | Yes                              |
+| Metrics         | Loss, Recall@10      | + NDCG@10, validation metrics    |
+| Training time   | ~2 min               | ~5 min                           |
+
+### Performance (Synthetic Data)
+
+With advanced training:
+
+- **Validation Recall@10**: ~42%
+- **Test Recall@10**: ~38%
+- **Parameters**: 206,688 (< 1MB model)
+
+## Model Evaluation
+
+```bash
+# Test the trained model
 make test-model
 
-# Test the improved model (with validation splits)
-python -m src.test_model --model models/model_improved.ckpt
-```
-
-### Compare Models
-
-```bash
-# Compare all available models side-by-side
+# Compare all models
 make compare-models
 ```
 
-This will show:
+The comparison shows metrics, training history, and sample recommendations.
 
-- Test set performance metrics (Recall@10, NDCG@10)
-- Training history and best epochs
-- Sample recommendations with attention-based explanations
-
-Note: `model.ckpt` shows N/A for test metrics because it trains on all data without splits. Only `model_improved.ckpt` uses train/val/test splits.
+**Note**: Basic model shows N/A for test metrics (trains on all data).
 
 ## Project Structure
 
@@ -119,7 +142,8 @@ spotify-engine/
 ├── notebooks/          # Jupyter notebooks
 ├── scripts/            # Data processing scripts
 └── src/                # Core implementation
-    └── models/         # GAT model
+    ├── models/         # GAT model
+    └── trainers/       # Training strategies
 ```
 
 ## Development
@@ -159,14 +183,13 @@ make quality
 
 - [Getting Started Guide](docs/getting-started.md)
 - [Technical Architecture](docs/technical/architecture.md)
-- [Training Process](docs/technical/training.md)
+- [Training Guide](docs/technical/training.md)
+- [Trainer Architecture](docs/technical/trainers.md)
 - [Evaluation Metrics](docs/evaluation.md)
-- [Future Enhancements](docs/future/)
 
 ## Next Steps
 
 - Add real music data (currently using synthetic)
-- Implement train/validation/test splits
-- Add more sophisticated features (audio, genres)
-- Create API endpoint for serving
+- Add audio features and genre information
+- Create API endpoint for serving recommendations
 - Deploy as web application

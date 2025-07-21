@@ -1,109 +1,193 @@
-# Training Process
+# Training Guide
 
 ## Overview
 
-The model is trained using implicit feedback - we only know what users listened to, not what they explicitly liked or disliked.
+The Spotify Engine uses two training strategies through modular trainer classes:
 
-## Training Approach
+- **SimpleTrainer**: Quick experiments with all data
+- **AdvancedTrainer**: Production-ready with validation and sophisticated features
+
+## Training Theory
 
 ### BPR (Bayesian Personalized Ranking) Loss
 
-BPR assumes that users prefer songs they've listened to over songs they haven't:
+We use implicit feedback learning:
 
-- **Positive samples**: User-song pairs from listening history
-- **Negative samples**: Randomly sampled songs the user hasn't listened to
-- **Objective**: Make positive songs score higher than negative ones
+- **Positive samples**: Songs the user listened to
+- **Negative samples**: Random songs they haven't heard
+- **Objective**: `score(user, listened_song) > score(user, random_song)`
 
-### Why This Works
-
-For each user-song pair (u, i) and a random song (j):
-
-- We want: score(u, i) > score(u, j)
-- BPR loss: -log(sigmoid(score(u, i) - score(u, j)))
-
-This pushes the model to rank listened songs higher than unlistened ones.
-
-## Current Implementation
-
-### Data Usage
-
-- **Training**: All edges in the graph
-- **Evaluation**: Same data (checking reconstruction ability)
-- **No train/test split** in v0 (keeping it simple)
-
-### Training Loop
-
-1. Shuffle all user-song edges
-2. For each batch:
-   - Get positive user-song pairs
-   - Sample negative songs randomly
-   - Compute BPR loss
-   - Update model
-
-### Evaluation Metric
-
-**Recall@10**: What fraction of a user's actual listened songs appear in their top-10 recommendations?
-
-- Evaluated on 100 random users each epoch
-- Higher is better (1.0 = perfect)
-
-## Running Training
-
-### Basic Training
-
-```bash
-python -m src.train
+```python
+loss = -log(sigmoid(pos_score - neg_score))
 ```
 
-Model checkpoints saved to: `models/model.ckpt`
+## Basic Training (SimpleTrainer)
 
-### Training Options
-
-#### Epochs
-
-Number of times to go through all the data:
+### Quick Start
 
 ```bash
-python -m src.train --epochs 20  # Default: 10
+make train
+# or
+python -m src.train --epochs 20
 ```
 
-- More epochs = more learning, but can overfit
-- Watch if Recall@10 stops improving
+### Features
 
-#### Learning Rate
+- Trains on all data (no validation split)
+- Fixed learning rate
+- Basic metrics (Loss, Recall@10)
+- Fast iteration (~2 minutes)
 
-How big steps the model takes when learning:
+### Options
+
+| Parameter         | Default | Description         |
+| ----------------- | ------- | ------------------- |
+| `--epochs`        | 10      | Training iterations |
+| `--lr`            | 0.01    | Learning rate       |
+| `--batch-size`    | 512     | Batch size          |
+| `--embedding-dim` | 32      | Embedding dimension |
+| `--heads`         | 4       | GAT attention heads |
+
+### When to Use
+
+- Quick experiments
+- Hyperparameter exploration
+- Baseline models
+- Limited data scenarios
+
+## Advanced Training (AdvancedTrainer)
+
+### Quick Start
 
 ```bash
-python -m src.train --lr 0.001  # Default: 0.01
+make train-improved
+# or
+python -m src.train_improved --epochs 50 --patience 5
 ```
 
-- Higher = faster learning but might overshoot
-- Lower = more stable but slower
-- Try 0.1, 0.01, 0.001
+### Features
 
-#### Batch Size
+#### 1. Data Splits
 
-How many examples to process at once:
+- **70% Training**: Model updates
+- **15% Validation**: Hyperparameter tuning
+- **15% Test**: Final evaluation
 
-```bash
-python -m src.train --batch-size 256  # Default: 512
+#### 2. Early Stopping
+
+- Monitors validation Recall@10
+- Stops when no improvement for `patience` epochs
+- Saves best model automatically
+
+#### 3. Learning Rate Scheduling
+
+- ReduceLROnPlateau strategy
+- Halves LR when validation plateaus
+- Minimum LR threshold
+
+#### 4. Enhanced Metrics
+
+- **Recall@K**: Fraction of relevant items in top-K
+- **NDCG@K**: Normalized Discounted Cumulative Gain
+- Separate train/val/test metrics
+
+### Options
+
+| Parameter         | Default | Description             |
+| ----------------- | ------- | ----------------------- |
+| `--epochs`        | 50      | Maximum epochs          |
+| `--patience`      | 5       | Early stopping patience |
+| `--lr`            | 0.01    | Initial learning rate   |
+| `--min-lr`        | 0.0001  | Minimum LR              |
+| `--lr-factor`     | 0.5     | LR reduction factor     |
+| `--lr-patience`   | 3       | LR scheduler patience   |
+| `--val-ratio`     | 0.15    | Validation split        |
+| `--test-ratio`    | 0.15    | Test split              |
+| `--use-scheduler` | flag    | Enable LR scheduling    |
+
+### Output Files
+
+```text
+models/advanced/
+├── best_model.pt       # Best validation checkpoint
+├── final_model.pt      # Final model state
+├── metrics.json        # Training history
+└── checkpoint_epoch_*.pt  # Regular checkpoints
 ```
 
-- Larger = faster training, more memory
-- Smaller = more stable updates
-- Limited by your RAM/GPU memory
+## Monitoring Training
 
-#### Combine Options
+### Basic Training Output
 
-```bash
-python -m src.train --epochs 20 --lr 0.001 --batch-size 256
+```text
+Epoch 5/20 - Loss: 0.3142, Recall@10: 0.2874
 ```
 
-### What to Look For
+### Advanced Training Output
 
-Good training shows:
+```text
+Epoch 16/50 - train_loss: 0.2757, val_recall@10: 0.4260, val_ndcg@10: 0.3142
+Current learning rate: 0.010000
+New best model! Val Recall@10: 0.4260
+```
 
-- Loss decreasing (lower is better)
-- Recall@10 increasing (higher is better, max 1.0)
-- Both stabilizing after a few epochs
+## Choosing a Trainer
+
+| Use Case              | Recommended Trainer | Why               |
+| --------------------- | ------------------- | ----------------- |
+| First experiment      | SimpleTrainer       | Fast feedback     |
+| Hyperparameter search | SimpleTrainer       | Quick iterations  |
+| Final model           | AdvancedTrainer     | Best performance  |
+| Production deployment | AdvancedTrainer     | Reliable metrics  |
+| Limited time          | SimpleTrainer       | 2-3x faster       |
+| Research paper        | AdvancedTrainer     | Proper evaluation |
+
+## Custom Training
+
+Create your own trainer by extending BaseTrainer:
+
+```python
+from src.trainers import BaseTrainer
+
+class CustomTrainer(BaseTrainer):
+    def train_epoch(self, graph):
+        # Your training logic
+        pass
+    
+    def evaluate(self, graph):
+        # Your evaluation logic
+        pass
+```
+
+See [Trainer Architecture](trainers.md) for details.
+
+## Tips for Better Results
+
+1. **Start Simple**: Use SimpleTrainer for initial experiments
+2. **Monitor Metrics**: Stop if validation metrics plateau
+3. **Adjust Learning Rate**: Try 0.1, 0.01, 0.001, 0.0001
+4. **Batch Size**: Larger = faster but needs more memory
+5. **Patience**: Increase for noisy data (10-15)
+6. **Validation Size**: 20% for small datasets, 10% for large
+
+## Common Issues
+
+### Overfitting
+
+- High train metrics, low validation
+- **Solution**: Reduce epochs, add dropout, smaller model
+
+### Underfitting
+
+- Low metrics across the board
+- **Solution**: More epochs, higher LR, larger model
+
+### Memory Errors
+
+- Out of memory during training
+- **Solution**: Reduce batch size (256, 128, 64)
+
+### Slow Convergence
+
+- Metrics improve very slowly
+- **Solution**: Increase learning rate, check data quality

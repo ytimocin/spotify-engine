@@ -42,7 +42,7 @@ def main():
     args = parser.parse_args()
 
     # Load graph
-    logger.info(f"Loading graph from: {args.graph}")
+    logger.info("Loading graph from: %s", args.graph)
     graph = torch.load(args.graph)
 
     # Model configuration
@@ -74,12 +74,12 @@ def main():
 
     # Print final results
     logger.info("Training complete!")
-    logger.info(f"Final epoch: {results['final_epoch']}")
+    logger.info("Final epoch: %d", results["final_epoch"])
     final_metrics = results["metrics_history"]
     if "train_loss" in final_metrics:
-        logger.info(f"Final loss: {final_metrics['train_loss'][-1]:.4f}")
+        logger.info("Final loss: %.4f", final_metrics["train_loss"][-1])
     if "recall@10" in final_metrics:
-        logger.info(f"Final Recall@10: {final_metrics['recall@10'][-1]:.4f}")
+        logger.info("Final Recall@10: %.4f", final_metrics["recall@10"][-1])
 
 
 if __name__ == "__main__":

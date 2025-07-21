@@ -15,6 +15,7 @@ The synthetic data generator creates realistic music listening patterns that mim
 ### 2. Session Continuity
 
 Users listen in sessions of multiple songs:
+
 - 20% single songs (quick checks)
 - 30% short sessions (3 songs)
 - 25% medium sessions (5 songs)
@@ -22,6 +23,7 @@ Users listen in sessions of multiple songs:
 - 10% extended sessions (20+ songs)
 
 Within sessions:
+
 - 40% chance of continuing with same artist
 - Small gaps (3-10 seconds) between songs
 

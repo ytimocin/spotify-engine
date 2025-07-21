@@ -11,7 +11,7 @@ graph TD
     A[raw_sessions.csv<br/>User listening sessions] -->|prepare_mssd.py| B[edge_list.parquet<br/>Aggregated interactions]
     C[tracks.csv<br/>Song metadata] -->|build_graph.py| D[graph.pt<br/>Heterogeneous Graph]
     B -->|build_graph.py| D
-    D -->|train.py| E[model.ckpt<br/>Trained GAT Model]
+    D -->|Trainers| E[model.ckpt<br/>Trained GAT Model]
     E -->|quick_demo.ipynb| F[Recommendations<br/>with Explanations]
     
     style A fill:#e1f5fe
@@ -51,10 +51,11 @@ graph TD
    - Normalizes edge weights
    - Handles missing nodes and relationships
 
-4. **Model Training** (`train.py`)
-   - Trains GAT with BPR loss
-   - Outputs model checkpoint and metrics
-   - Implements early stopping based on Recall@10
+4. **Model Training** (Trainer Architecture)
+   - **SimpleTrainer**: Basic training on all data
+   - **AdvancedTrainer**: With validation, early stopping, LR scheduling
+   - Uses BPR loss for implicit feedback learning
+   - Outputs model checkpoints and metrics
 
 5. **Inference** (`quick_demo.ipynb`)
    - Loads trained model
@@ -155,6 +156,30 @@ def recommend(self, user_idx, x_dict, graph, k=10):
 - **Embedding Parameters**: 205,600 (99.5%)
 - **GAT Parameters**: ~1,088
 - **Lightweight**: Fits in < 1MB
+
+## Training Architecture
+
+### Trainer Classes
+
+```text
+BaseTrainer (Abstract)
+├── SimpleTrainer      # Quick experiments
+└── AdvancedTrainer   # Production training
+```
+
+- **BaseTrainer**: Provides common functionality (checkpointing, metrics, training loop)
+- **SimpleTrainer**: Trains on all data, fixed LR, basic metrics
+- **AdvancedTrainer**: Train/val/test splits, early stopping, LR scheduling, comprehensive metrics
+
+### Training Strategies
+
+| Feature | SimpleTrainer | AdvancedTrainer |
+|---------|--------------|------------------|
+| Data Splits | None | 70/15/15 |
+| Early Stopping | No | Yes |
+| LR Scheduling | No | ReduceLROnPlateau |
+| Checkpointing | Final only | Best + regular |
+| Metrics | Loss, Recall@10 | + NDCG@10, validation |
 
 ## Training Process
 

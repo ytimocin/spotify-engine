@@ -71,7 +71,7 @@ class BaseTrainer(ABC):
     def _create_model(self) -> nn.Module:
         """Create and initialize the model."""
         model = GATRecommender(**self.model_config)
-        logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
+        logger.info("Model parameters: %s", f"{sum(p.numel() for p in model.parameters()):,}")
         return model
 
     def _create_optimizer(self) -> torch.optim.Optimizer:
@@ -89,7 +89,7 @@ class BaseTrainer(ABC):
         Returns:
             Dictionary containing final metrics and model state
         """
-        logger.info(f"Starting training for {num_epochs} epochs...")
+        logger.info("Starting training for %d epochs...", num_epochs)
 
         for epoch in range(num_epochs):
             self.current_epoch = epoch + 1
@@ -114,7 +114,7 @@ class BaseTrainer(ABC):
 
             # Check early stopping
             if should_stop:
-                logger.info(f"Early stopping triggered at epoch {self.current_epoch}")
+                logger.info("Early stopping triggered at epoch %d", self.current_epoch)
                 break
 
         # Final model save
@@ -137,7 +137,6 @@ class BaseTrainer(ABC):
         Returns:
             Dictionary of training metrics
         """
-        pass
 
     @abstractmethod
     def evaluate(self, graph) -> Dict[str, float]:
@@ -150,7 +149,6 @@ class BaseTrainer(ABC):
         Returns:
             Dictionary of evaluation metrics
         """
-        pass
 
     def save_checkpoint(self, metrics: Optional[Dict[str, float]] = None, is_best: bool = False):
         """Save model checkpoint."""
@@ -171,7 +169,7 @@ class BaseTrainer(ABC):
         if is_best:
             best_path = self.output_dir / "best_model.pt"
             torch.save(checkpoint, best_path)
-            logger.info(f"Saved best model checkpoint at epoch {self.current_epoch}")
+            logger.info("Saved best model checkpoint at epoch %d", self.current_epoch)
 
     def load_checkpoint(self, checkpoint_path: str):
         """Load model from checkpoint."""
@@ -179,7 +177,7 @@ class BaseTrainer(ABC):
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         self.current_epoch = checkpoint.get("epoch", 0)
-        logger.info(f"Loaded checkpoint from epoch {self.current_epoch}")
+        logger.info("Loaded checkpoint from epoch %d", self.current_epoch)
 
     def save_final_model(self):
         """Save final model and metrics."""
@@ -199,10 +197,10 @@ class BaseTrainer(ABC):
 
         # Save metrics
         metrics_path = self.output_dir / "metrics.json"
-        with open(metrics_path, "w") as f:
+        with open(metrics_path, "w", encoding="utf-8") as f:
             json.dump(self.metrics_history, f, indent=2)
 
-        logger.info(f"Saved final model to {final_path}")
+        logger.info("Saved final model to %s", final_path)
 
     def _update_metrics_history(
         self, train_metrics: Dict[str, float], eval_metrics: Dict[str, float]
@@ -236,7 +234,6 @@ class BaseTrainer(ABC):
     # Hooks for subclasses
     def on_epoch_start(self):
         """Hook called at the start of each epoch."""
-        pass
 
     def on_epoch_end(self, train_metrics: Dict[str, float], eval_metrics: Dict[str, float]) -> bool:
         """
@@ -245,4 +242,6 @@ class BaseTrainer(ABC):
         Returns:
             True if training should stop early
         """
+        _ = train_metrics  # Unused in base implementation
+        _ = eval_metrics  # Unused in base implementation
         return False

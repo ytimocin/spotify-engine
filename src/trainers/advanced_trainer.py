@@ -78,8 +78,10 @@ class AdvancedTrainer(BaseTrainer):
 
         if self.train_mask is not None and self.val_mask is not None and self.test_mask is not None:
             logger.info(
-                f"Data splits - Train: {self.train_mask.sum():,}, "
-                f"Val: {self.val_mask.sum():,}, Test: {self.test_mask.sum():,}"
+                "Data splits - Train: %s, Val: %s, Test: %s",
+                f"{self.train_mask.sum():,}",
+                f"{self.val_mask.sum():,}",
+                f"{self.test_mask.sum():,}",
             )
 
     def train(self, graph, num_epochs: int) -> Dict[str, Any]:
@@ -92,7 +94,7 @@ class AdvancedTrainer(BaseTrainer):
         if self.test_mask is not None:
             test_metrics = self._evaluate_on_split(graph, self.test_mask, "test")
             result["test_metrics"] = test_metrics
-            logger.info(f"Final test metrics: {test_metrics}")
+            logger.info("Final test metrics: %s", test_metrics)
 
         return result
 
@@ -207,7 +209,7 @@ class AdvancedTrainer(BaseTrainer):
         if self.scheduler:
             self.scheduler.step(val_metric)
             current_lr = self.optimizer.param_groups[0]["lr"]
-            logger.info(f"Current learning rate: {current_lr:.6f}")
+            logger.info("Current learning rate: %.6f", current_lr)
 
         # Check for improvement
         if val_metric > self.best_val_metric:
@@ -217,16 +219,17 @@ class AdvancedTrainer(BaseTrainer):
 
             # Save best model
             self.save_checkpoint(eval_metrics, is_best=True)
-            logger.info(f"New best model! Val Recall@10: {val_metric:.4f}")
+            logger.info("New best model! Val Recall@10: %.4f", val_metric)
         else:
             self.patience_counter += 1
 
         # Early stopping check
         if self.patience_counter >= self.patience:
-            logger.info(f"Early stopping triggered! No improvement for {self.patience} epochs.")
+            logger.info("Early stopping triggered! No improvement for %d epochs.", self.patience)
             logger.info(
-                f"Best model was from epoch {self.best_epoch} "
-                f"with Val Recall@10: {self.best_val_metric:.4f}"
+                "Best model was from epoch %d with Val Recall@10: %.4f",
+                self.best_epoch,
+                self.best_val_metric,
             )
             return True
 

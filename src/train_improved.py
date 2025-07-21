@@ -65,7 +65,7 @@ def main():
     torch.manual_seed(args.random_state)
 
     # Load graph
-    logger.info(f"Loading graph from: {args.graph}")
+    logger.info("Loading graph from: %s", args.graph)
     graph = torch.load(args.graph)
 
     # Model configuration
@@ -105,26 +105,26 @@ def main():
     results = trainer.train(graph, args.epochs)
 
     # Print final results
-    logger.info("\n" + "=" * 80)
+    logger.info("\n%s", "=" * 80)
     logger.info("TRAINING COMPLETE!")
     logger.info("=" * 80)
 
     # Training summary
-    logger.info(f"Final epoch: {results['final_epoch']}")
-    logger.info(f"Best epoch: {trainer.best_epoch}")
+    logger.info("Final epoch: %d", results["final_epoch"])
+    logger.info("Best epoch: %d", trainer.best_epoch)
 
     # Validation performance
     if "val_recall@10" in results["metrics_history"]:
         best_val_recall = max(results["metrics_history"]["val_recall@10"])
-        logger.info(f"Best Val Recall@10: {best_val_recall:.4f}")
+        logger.info("Best Val Recall@10: %.4f", best_val_recall)
 
     # Test performance
     if "test_metrics" in results:
         logger.info("\nTest Set Performance:")
         for metric, value in results["test_metrics"].items():
-            logger.info(f"  {metric}: {value:.4f}")
+            logger.info("  %s: %.4f", metric, value)
 
-    logger.info(f"\nModel saved to: {args.output_dir}")
+    logger.info("\nModel saved to: %s", args.output_dir)
 
 
 if __name__ == "__main__":
