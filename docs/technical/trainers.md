@@ -16,12 +16,13 @@ BaseTrainer (Abstract)
 
 The abstract base class provides:
 
-- Model initialization
+- Model initialization (supports both basic and enhanced GAT models)
 - Optimizer creation
 - Training loop orchestration
 - Checkpoint management
 - Metrics tracking
 - TensorBoard logging (optional)
+- Automatic model selection based on configuration
 
 ### SimpleTrainer
 
@@ -63,13 +64,27 @@ import torch
 # Load graph
 graph = torch.load('data/graph.pt')
 
-# Configure model
+# Configure basic model
 model_config = {
     "num_users": graph["user"].num_nodes,
     "num_songs": graph["song"].num_nodes,
     "num_artists": graph["artist"].num_nodes,
     "embedding_dim": 32,
     "heads": 4,
+}
+
+# Configure enhanced model with genres
+enhanced_config = {
+    "num_users": graph["user"].num_nodes,
+    "num_songs": graph["song"].num_nodes,
+    "num_artists": graph["artist"].num_nodes,
+    "num_genres": graph["genre"].num_nodes,  # Enable genre support
+    "use_enhanced": True,                    # Use enhanced model
+    "embedding_dim": 64,
+    "hidden_dim": 64,
+    "num_layers": 2,
+    "heads": 4,
+    "genre_weight": 0.15,
 }
 
 # Configure training
@@ -179,12 +194,21 @@ class CurriculumTrainer(BaseTrainer):
 
 ```python
 model_config = {
+    # Basic configuration
     "num_users": int,          # Number of users
     "num_songs": int,          # Number of songs  
     "num_artists": int,        # Number of artists
     "embedding_dim": int,      # Embedding dimension (default: 32)
     "heads": int,              # GAT attention heads (default: 4)
     "dropout": float,          # Dropout rate (default: 0.1)
+    
+    # Enhanced model configuration
+    "use_enhanced": bool,      # Use enhanced GAT model (default: False)
+    "num_genres": int,         # Number of genres (required if use_enhanced=True)
+    "hidden_dim": int,         # Hidden dimension for enhanced model (default: 64)
+    "num_layers": int,         # Number of GAT layers (enhanced only, default: 2)
+    "genre_weight": float,     # Weight for genre influence (default: 0.1)
+    "use_genres": bool,        # Enable genre features (default: True if num_genres > 0)
 }
 ```
 
@@ -228,6 +252,29 @@ training_config = {
 | Data Splits    | No            | Yes             | Custom   |
 | Early Stopping | No            | Yes             | Custom   |
 | LR Scheduling  | No            | Yes             | Custom   |
+| Basic GAT      | Yes           | Yes             | Yes      |
+| Enhanced GAT   | Yes           | Yes             | Yes      |
+| Genre Support  | Yes           | Yes             | Yes      |
+
+## Model Selection in Trainers
+
+The BaseTrainer automatically selects the appropriate model based on configuration:
+
+```python
+def _create_model(self):
+    """Create model based on configuration."""
+    model_config = self.model_config.copy()
+    use_enhanced = model_config.pop("use_enhanced", False)
+    
+    if use_enhanced:
+        from src.models.enhanced_gat_recommender import EnhancedGATRecommender
+        model = EnhancedGATRecommender(**model_config)
+    else:
+        from src.models.gat_recommender import GATRecommender  
+        model = GATRecommender(**model_config)
+    
+    return model
+```
 
 ## Future Extensions
 

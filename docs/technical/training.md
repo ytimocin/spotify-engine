@@ -7,6 +7,11 @@ The Spotify Engine uses two training strategies through modular trainer classes:
 - **SimpleTrainer**: Quick experiments with all data
 - **AdvancedTrainer**: Production-ready with validation and sophisticated features
 
+Both trainers support two model architectures:
+
+- **Basic GAT Model**: Collaborative filtering only (~206K parameters)
+- **Enhanced GAT Model**: Genre-aware with explainability (~500K+ parameters)
+
 ## Training Theory
 
 ### BPR (Bayesian Personalized Ranking) Loss
@@ -47,6 +52,7 @@ python -m src.train --epochs 20
 | `--batch-size`    | 512     | Batch size          |
 | `--embedding-dim` | 32      | Embedding dimension |
 | `--heads`         | 4       | GAT attention heads |
+| `--use-enhanced`  | flag    | Use enhanced GAT model |
 
 ### When to Use
 
@@ -104,6 +110,7 @@ python -m src.train_improved --epochs 50 --patience 5
 | `--val-ratio`     | 0.15    | Validation split        |
 | `--test-ratio`    | 0.15    | Test split              |
 | `--use-scheduler` | flag    | Enable LR scheduling    |
+| `--use-enhanced`  | flag    | Use enhanced GAT model  |
 
 ### Output Files
 
@@ -161,6 +168,34 @@ class CustomTrainer(BaseTrainer):
 
 See [Trainer Architecture](trainers.md) for details.
 
+## Enhanced Model Training
+
+### Training with Genre Support
+
+```bash
+# Train enhanced model
+python -m src.train_improved --epochs 50 --use-enhanced
+
+# With custom genre weight
+python -m src.train_improved --epochs 50 --use-enhanced --genre-weight 0.2
+```
+
+### Performance Comparison
+
+| Model           | Parameters | Train Time | Val Recall@10 | Test Recall@10 | Features            |
+| --------------- | ---------- | ---------- | ------------- | -------------- | ------------------- |
+| Basic GAT       | ~206K      | ~2 min     | ~42%          | ~38%           | Collaborative only  |
+| Enhanced GAT    | ~500K+     | ~5-10 min  | ~45%*         | ~40%*          | + Genres, Explain   |
+
+*Performance varies based on genre weight and data quality
+
+### Enhanced Model Benefits
+
+1. **Better Cold Start**: Genre information helps recommend to new users
+2. **Explainability**: Understand why songs were recommended
+3. **Genre Diversity**: More varied recommendations
+4. **User Type Awareness**: Adapts to casual/regular/power users
+
 ## Tips for Better Results
 
 1. **Start Simple**: Use SimpleTrainer for initial experiments
@@ -169,6 +204,8 @@ See [Trainer Architecture](trainers.md) for details.
 4. **Batch Size**: Larger = faster but needs more memory
 5. **Patience**: Increase for noisy data (10-15)
 6. **Validation Size**: 20% for small datasets, 10% for large
+7. **Genre Weight**: Start with 0.1-0.2 for enhanced model
+8. **Model Selection**: Use basic for speed, enhanced for quality
 
 ## Common Issues
 

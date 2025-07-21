@@ -10,12 +10,20 @@ The Spotify Engine is a graph-based recommendation system that transforms music 
 graph TD
     A[raw_sessions.csv<br/>User listening sessions] -->|prepare_mssd.py| B[edge_list.parquet<br/>Aggregated interactions]
     C[tracks.csv<br/>Song metadata] -->|build_graph.py| D[graph.pt<br/>Heterogeneous Graph]
+    G[genres.csv<br/>Genre metadata] -->|build_graph.py| D
+    H[user_genre_preferences.csv<br/>User genre affinities] -->|build_graph.py| D
+    I[artist_genres.csv<br/>Artist-genre mappings] -->|build_graph.py| D
+    J[song_genres.csv<br/>Song-genre mappings] -->|build_graph.py| D
     B -->|build_graph.py| D
     D -->|Trainers| E[model.ckpt<br/>Trained GAT Model]
     E -->|quick_demo.ipynb| F[Recommendations<br/>with Explanations]
     
     style A fill:#e1f5fe
     style C fill:#e1f5fe
+    style G fill:#e1f5fe
+    style H fill:#e1f5fe
+    style I fill:#e1f5fe
+    style J fill:#e1f5fe
     style B fill:#fff3e0
     style D fill:#f3e5f5
     style E fill:#e8f5e9
@@ -26,8 +34,17 @@ graph TD
 
 1. **Data Generation** (`generate_synthetic_data.py`)
    - Creates synthetic listening sessions with realistic patterns
-   - Outputs: `raw_sessions.csv`, `tracks.csv`
-   - 1000 users, 5000 songs, 500 artists
+   - Generates 35 music genres with Zipf-distributed popularity
+   - Assigns genres to artists (1-3 genres per artist) and songs
+   - Creates user genre preferences with affinity scores
+   - Outputs: 
+     - `raw_sessions.csv` - Listening sessions
+     - `tracks.csv` - Song metadata
+     - `genres.csv` - Genre definitions
+     - `artist_genres.csv` - Artist-genre mappings
+     - `song_genres.csv` - Song-genre mappings  
+     - `user_genre_preferences.csv` - User genre affinities
+   - 1000 users, 5000 songs, 500 artists, 35 genres
    - Raw Format:
 
      ```text
@@ -46,10 +63,12 @@ graph TD
    - Creates edge weights
 
 3. **Graph Construction** (`build_graph.py`)
-   - Builds PyTorch Geometric HeteroData object
-   - Creates node mappings and edge indices
-   - Normalizes edge weights
+   - Builds PyTorch Geometric HeteroData object with 4 node types
+   - Creates node mappings and edge indices for all relationships
+   - Processes genre nodes and genre-related edges
+   - Normalizes edge weights including genre affinity scores
    - Handles missing nodes and relationships
+   - Adds genre metadata to graph attributes
 
 4. **Model Training** (Trainer Architecture)
    - **SimpleTrainer**: Basic training on all data
@@ -67,34 +86,59 @@ graph TD
 ### Node Types
 
 ```text
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   User      │     │   Song      │     │   Artist    │
-├─────────────┤     ├─────────────┤     ├─────────────┤
-│ id: int     │     │ id: int     │     │ id: int     │
-│ (no feat.)  │     │ (no feat.)  │     │ name: str   │
-└─────────────┘     └─────────────┘     └─────────────┘
-       │                    │                    │
-       │                    │                    │
-       └────listens─────────┘                    │
-              edge                               │
-         ├─ play_count                           │
-         ├─ completion_ratio                     │
-         └─ edge_weight                          │
-                                                 │
-                    ┌────────performs────────────┘
-                    │         edge
-                    ▼
-                    │
-                    └────────────► Song
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   User      │     │   Song      │     │   Artist    │     │   Genre     │
+├─────────────┤     ├─────────────┤     ├─────────────┤     ├─────────────┤
+│ id: int     │     │ id: int     │     │ id: int     │     │ id: int     │
+│ type: str   │     │ (no feat.)  │     │ name: str   │     │ name: str   │
+└─────────────┘     └─────────────┘     └─────────────┘     │ popularity  │
+       │                    │                    │           └─────────────┘
+       │                    │                    │                    ▲
+       └────listens─────────┘                    │                    │
+              edge                               │                    │
+         ├─ play_count                           │                    │
+         ├─ completion_ratio                     │                    │
+         └─ edge_weight                          │                    │
+                                                 │                    │
+       ┌────prefers──────────────────────────────┼────────────────────┘
+       │      edge                               │        edge
+       │ └─ affinity_score                       └───────belongs_to
+       │                                                      │
+       ▼                    ┌────────performs─────────────────┘
+     Genre                  │         edge
+                           ▼
+                           │
+                           └────────────► Song ──────has_genre──────► Genre
+                                                      edge
 ```
 
 ### Edge Attributes
 
+#### User → Song (listens_to)
 - **play_count**: Number of times user played song
 - **completion_ratio**: Average fraction of song listened
 - **edge_weight**: 0.7 × completion_ratio + 0.3 × normalized_play_count
 
+#### User → Genre (prefers)
+- **affinity_score**: Normalized preference score (0-1) based on user type and listening history
+
+#### Artist → Genre (belongs_to)
+- No attributes (membership relationship)
+
+#### Song → Genre (has_genre)
+- No attributes (inherited from artist genres)
+
 ## Model Architecture
+
+The system includes two model variants:
+
+### 1. Basic GAT Recommender (Collaborative Filtering Only)
+
+The basic model focuses on user-song interactions without genre information.
+
+### 2. Enhanced GAT Recommender (Genre-Aware)
+
+The enhanced model incorporates genre information for improved recommendations and explainability.
 
 ### GAT Recommender Components
 
@@ -105,14 +149,23 @@ graph TD
 │ User Embeddings (1000 × 32)         │
 │ Song Embeddings (5000 × 32)         │
 │ Artist Embeddings (500 × 32)        │
+│ Genre Embeddings (35 × 32)*         │
 └──────────────┬──────────────────────┘
+  (*Enhanced model only)
                │
 ┌──────────────▼──────────────────────┐
-│      GAT Layer (4 heads)            │
+│      GAT Layers                     │
 ├─────────────────────────────────────┤
-│ - Multi-head attention              │
+│ Basic Model:                        │
+│ - Single GAT layer (4 heads)        │
 │ - Dropout (0.1)                     │
-│ - Output: 32 dims                   │
+│                                     │
+│ Enhanced Model:                     │
+│ - Layer 1: GAT (4 heads, 64 dims)   │
+│ - Layer 2: GAT (2 heads, 32 dims)   │
+│ - Batch normalization               │
+│ - Dropout (0.2)                     │
+│ - Genre-aware attention             │
 │ - Preserves attention weights       │
 └──────────────┬──────────────────────┘
                │
@@ -126,7 +179,13 @@ graph TD
 ┌──────────────▼──────────────────────┐
 │      Scoring Function               │
 ├─────────────────────────────────────┤
-│ score(u,s) = u·s (dot product)      │
+│ Basic: score(u,s) = u·s             │
+│                                     │
+│ Enhanced:                           │
+│ collab_score = u·s                  │
+│ genre_score = genre_similarity(u,s) │
+│ final = α·collab + (1-α)·genre      │
+│ (α = 0.8 by default)                │
 └─────────────────────────────────────┘
 ```
 
@@ -152,12 +211,21 @@ def recommend(self, user_idx, x_dict, graph, k=10):
 
 ### Model Statistics
 
+#### Basic Model
 - **Total Parameters**: 206,688
 - **Embedding Parameters**: 205,600 (99.5%)
 - **GAT Parameters**: ~1,088
-- **Lightweight**: Fits in < 1MB
+- **Model Size**: < 1MB
+
+#### Enhanced Model  
+- **Total Parameters**: ~500K+
+- **Additional Genre Embeddings**: 1,120 (35 × 32)
+- **Multi-layer GAT Parameters**: ~10K
+- **Model Size**: < 2MB
 
 ## Training Architecture
+
+Both trainer classes support training either the basic or enhanced model through configuration.
 
 ### Trainer Classes
 
@@ -210,17 +278,27 @@ loss = -log(sigmoid(score(u, pos_item) - score(u, neg_item)))
 ### Primary Metrics
 
 - **Recall@10**: Percentage of user's test items found in top-10 recommendations
+- **NDCG@10**: Normalized Discounted Cumulative Gain for ranking quality
 - **Loss**: BPR loss on validation set
 
-### Secondary Metrics
+### Genre-Aware Metrics (Enhanced Model)
+
+- **Genre Diversity**: Variety of genres in recommendations
+- **Genre Coverage**: Percentage of genres represented in recommendations
+- **Genre Influence Score**: Quantifies impact of genre preferences on recommendations
+
+### Extended Metrics
 
 - **Coverage**: Percentage of items that can be recommended
-- **Diversity**: Uniqueness of recommendations across users
+- **Diversity**: Uniqueness of recommendations across users  
 - **Novelty**: Ability to recommend less popular items
+- **User Type Performance**: Metrics broken down by casual/regular/power users
 
 ## Explainability Mechanism
 
-### Attention Weight Interpretation
+The enhanced model provides comprehensive explainability through multiple mechanisms:
+
+### 1. Attention Weight Interpretation
 
 The GAT attention mechanism computes weights α_ij indicating how much song j influences recommendations for user i:
 
@@ -234,13 +312,36 @@ These weights are:
 - **Interpretable**: Higher weight = stronger influence
 - **Visualizable**: Can create attention heatmaps
 
-### Example Explanation
+### 2. Genre-Based Explanations
+
+The enhanced model explains recommendations through genre analysis:
+
+```python
+explanation = {
+    'collaborative_score': 0.75,
+    'genre_score': 0.82,
+    'final_score': 0.77,
+    'matched_genres': ['Rock', 'Alternative'],
+    'genre_influence': 0.25
+}
+```
+
+### 3. Multi-Factor Reasoning
 
 ```text
-Recommending "Song X" because you listened to:
-- "Song A" (attention: 0.45) - same artist
-- "Song B" (attention: 0.31) - similar style  
-- "Song C" (attention: 0.24) - genre match
+Recommending "Song X" because:
+
+1. Similar Listening Patterns (75% influence):
+   - Users who liked "Song A" also enjoyed this (attention: 0.45)
+   - Similar to "Song B" in your history (attention: 0.31)
+   
+2. Genre Match (25% influence):
+   - Matches your preference for Rock (affinity: 0.85)
+   - Artist shares Alternative genre with your favorites
+   
+3. Popularity Context:
+   - Moderately popular in your preferred genres
+   - Discovered by users with similar tastes
 ```
 
 ## Error Handling
@@ -272,6 +373,24 @@ Recommending "Song X" because you listened to:
 - Python 3.8-3.12
 - 2GB RAM minimum
 
+## Implementation Status
+
+### ✅ Completed Features
+
+- **Genre System**: Full implementation with 35 genres
+- **Enhanced GAT Model**: Multi-layer architecture with genre awareness
+- **Comprehensive Explainability**: Attention + genre-based explanations
+- **Extended Metrics**: Genre diversity, coverage, and influence analysis
+- **Realistic Data Generation**: Beta distributions, user behavioral patterns
+- **Data Validation**: Quality checks for behavioral patterns and distributions
+
+### 🎯 Next Phase Features
+
+- **Model Versioning**: Experiment tracking and comparison
+- **Hyperparameter Optimization**: Automated tuning with Optuna
+- **Context Features**: Time-of-day, activity-based recommendations
+- **API Development**: REST endpoints for serving recommendations
+
 ## Future Architecture Considerations
 
 ### Scalability
@@ -279,6 +398,7 @@ Recommending "Song X" because you listened to:
 - Graph sampling for larger datasets
 - Distributed training with DGL
 - Approximate nearest neighbor search
+- Incremental learning for new users/songs
 
 ### Additional Features
 
@@ -286,6 +406,7 @@ Recommending "Song X" because you listened to:
 - Content features (audio embeddings)
 - Social edges (friend connections)
 - Multi-task learning (predict skips, likes)
+- Cross-domain recommendations
 
 ### Production Deployment
 
