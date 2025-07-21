@@ -54,6 +54,12 @@ def main():
         "heads": args.heads,
     }
 
+    # Add genre information if available
+    if "genre" in graph.node_types:
+        model_config["num_genres"] = graph["genre"].num_nodes
+        model_config["use_enhanced"] = True
+        logger.info("Detected %d genres in graph, using enhanced model", graph["genre"].num_nodes)
+
     # Training configuration
     training_config = {
         "lr": args.lr,

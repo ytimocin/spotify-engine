@@ -137,33 +137,47 @@ class DataGenerationConfig:
         default_factory=lambda: {"full": 0.4, "skip": 0.2, "partial": 0.4}
     )
 
+    # User type behavioral multipliers
+    user_type_session_length_multipliers: Dict[str, float] = field(
+        default_factory=lambda: {"casual": 0.7, "regular": 1.0, "power": 1.5}
+    )
+
+    user_type_skip_rate_multipliers: Dict[str, float] = field(
+        default_factory=lambda: {"casual": 1.3, "regular": 1.0, "power": 0.6}
+    )
+
+    user_type_genre_diversity_multipliers: Dict[str, float] = field(
+        default_factory=lambda: {"casual": 0.8, "regular": 1.0, "power": 1.4}
+    )
+
     # Time patterns - hourly listening weights (24 hours)
+    # Reduced early morning activity (0-6am) to be more realistic
     hour_weights: List[float] = field(
         default_factory=lambda: [
-            0.3,
-            0.3,
-            0.3,
-            0.3,
-            0.4,
-            0.6,
-            0.8,
-            1.0,  # 0-7 (early morning to commute)
-            0.9,
-            0.5,
-            0.4,
-            0.4,
-            0.5,
-            0.6,
-            0.7,
-            0.8,  # 8-15 (work hours)
-            0.9,
-            1.0,
-            1.0,
-            1.0,
-            0.9,
-            0.8,
-            0.6,
-            0.4,  # 16-23 (evening to night)
+            0.1,  # 0am
+            0.05,  # 1am
+            0.05,  # 2am
+            0.05,  # 3am
+            0.05,  # 4am
+            0.1,  # 5am
+            0.3,  # 6am
+            0.7,  # 7am (commute starts)
+            0.9,  # 8am
+            0.5,  # 9am
+            0.4,  # 10am
+            0.4,  # 11am
+            0.5,  # 12pm (lunch)
+            0.6,  # 1pm
+            0.7,  # 2pm
+            0.8,  # 3pm
+            0.9,  # 4pm (commute home)
+            1.0,  # 5pm (peak evening)
+            1.0,  # 6pm (peak evening)
+            1.0,  # 7pm (peak evening)
+            0.9,  # 8pm
+            0.8,  # 9pm
+            0.6,  # 10pm
+            0.4,  # 11pm
         ]
     )
 
@@ -267,24 +281,69 @@ CONFIG = DataGenerationConfig()
 
 
 def generate_genres() -> pd.DataFrame:
-    """Generate music genres with popularity distribution."""
-    genres_data = [
-        {"genre_id": "G001", "genre_name": "Pop", "popularity": 0.95},
-        {"genre_id": "G002", "genre_name": "Rock", "popularity": 0.80},
-        {"genre_id": "G003", "genre_name": "Hip Hop", "popularity": 0.85},
-        {"genre_id": "G004", "genre_name": "Electronic", "popularity": 0.70},
-        {"genre_id": "G005", "genre_name": "R&B", "popularity": 0.75},
-        {"genre_id": "G006", "genre_name": "Country", "popularity": 0.65},
-        {"genre_id": "G007", "genre_name": "Jazz", "popularity": 0.45},
-        {"genre_id": "G008", "genre_name": "Classical", "popularity": 0.40},
-        {"genre_id": "G009", "genre_name": "Latin", "popularity": 0.60},
-        {"genre_id": "G010", "genre_name": "Indie", "popularity": 0.55},
-        {"genre_id": "G011", "genre_name": "Metal", "popularity": 0.50},
-        {"genre_id": "G012", "genre_name": "Folk", "popularity": 0.35},
-        {"genre_id": "G013", "genre_name": "Reggae", "popularity": 0.30},
-        {"genre_id": "G014", "genre_name": "Blues", "popularity": 0.25},
-        {"genre_id": "G015", "genre_name": "Soul", "popularity": 0.40},
+    """Generate music genres with realistic Zipf distribution."""
+    # 35 diverse genres for better recommendation testing
+    genre_names = [
+        "Pop",
+        "Rock",
+        "Hip Hop",
+        "Electronic",
+        "R&B",
+        "Country",
+        "Jazz",
+        "Classical",
+        "Latin",
+        "Indie",
+        "Metal",
+        "Folk",
+        "Reggae",
+        "Blues",
+        "Soul",
+        "Alternative",
+        "Dance",
+        "Punk",
+        "Funk",
+        "World",
+        "Ambient",
+        "Techno",
+        "House",
+        "Dubstep",
+        "Acoustic",
+        "Gospel",
+        "New Age",
+        "Experimental",
+        "Progressive",
+        "Grunge",
+        "Ska",
+        "Instrumental",
+        "Vocal Jazz",
+        "Bossa Nova",
+        "Post-Rock",
     ]
+
+    genres_data = []
+
+    # Use Zipf distribution for popularity (s ≈ 1.1)
+    # This creates realistic long tail with top genres having < 40% total share
+    zipf_s = 1.1
+    ranks = np.arange(1, len(genre_names) + 1)
+    zipf_weights = 1 / (ranks**zipf_s)
+
+    # Normalize to create popularity scores between 0.15 and 0.95
+    min_pop, max_pop = 0.15, 0.95
+    normalized_weights = (zipf_weights - zipf_weights.min()) / (
+        zipf_weights.max() - zipf_weights.min()
+    )
+    popularities = min_pop + normalized_weights * (max_pop - min_pop)
+
+    for i, (genre_name, popularity) in enumerate(zip(genre_names, popularities)):
+        genres_data.append(
+            {
+                "genre_id": f"G{i + 1:03d}",  # G001, G002, etc.
+                "genre_name": genre_name,
+                "popularity": round(popularity, 3),
+            }
+        )
 
     return pd.DataFrame(genres_data)
 
@@ -405,7 +464,11 @@ def generate_user_genre_preferences(
     for _, user in users_df.iterrows():
         # Number of preferred genres based on user type
         min_genres, max_genres = CONFIG.genre_count_by_user_type[user["user_type"]]
-        n_preferred_genres = random.randint(min_genres, max_genres)
+        base_n_genres = random.randint(min_genres, max_genres)
+
+        # Apply genre diversity multiplier
+        diversity_multiplier = CONFIG.user_type_genre_diversity_multipliers[user["user_type"]]
+        n_preferred_genres = max(1, min(len(genres_df), int(base_n_genres * diversity_multiplier)))
 
         # Select genres with some bias towards popular genres
         # But power users are more likely to explore niche genres
@@ -536,9 +599,14 @@ def generate_listening_sessions(
             )
 
             # Session length (number of songs in this listening session)
+            # Apply user type multiplier to session length
             session_lengths = list(CONFIG.session_length_weights.keys())
             session_weights = list(CONFIG.session_length_weights.values())
-            session_length = random.choices(session_lengths, weights=session_weights)[0]
+            base_session_length = random.choices(session_lengths, weights=session_weights)[0]
+
+            # Apply user type multiplier
+            length_multiplier = CONFIG.user_type_session_length_multipliers[user["user_type"]]
+            session_length = max(1, int(base_session_length * length_multiplier))
 
             current_time = session_start
             last_artist_id = None
@@ -603,25 +671,82 @@ def generate_listening_sessions(
                 last_artist_id = song["artist_id"]
 
                 # Listening duration: full song, skip, or partial
+                # Apply user type multiplier to skip behavior
                 behaviors = list(CONFIG.listening_behavior_weights.keys())
                 behavior_weights = list(CONFIG.listening_behavior_weights.values())
-                listen_behavior = random.choices(behaviors, weights=behavior_weights)[0]
+
+                # Adjust weights based on user type
+                skip_multiplier = CONFIG.user_type_skip_rate_multipliers[user["user_type"]]
+                adjusted_weights = behavior_weights.copy()
+
+                # Find skip index and adjust weights
+                skip_idx = behaviors.index("skip")
+                full_idx = behaviors.index("full")
+
+                # Increase skip weight for casual users, decrease for power users
+                adjusted_weights[skip_idx] *= skip_multiplier
+                # Compensate by adjusting full listening weight inversely
+                adjusted_weights[full_idx] *= 2.0 - skip_multiplier
+
+                # Normalize weights
+                total_weight = sum(adjusted_weights)
+                adjusted_weights = [w / total_weight for w in adjusted_weights]
+
+                listen_behavior = random.choices(behaviors, weights=adjusted_weights)[0]
+
+                # Generate a user's listening preference for this song to couple skip/completion rates
+                # Users who tend to skip more have lower completion rates when they do listen
+                user_patience = np.random.beta(2, 2)  # 0-1, where higher = more patient listener
 
                 if listen_behavior == "full":
-                    ms_played = song["duration_ms"]
+                    # Use beta distribution to create realistic completion rates
+                    # More patient users complete songs more fully
+                    if user_patience > 0.7:
+                        # Patient users: high completion
+                        completion_ratio = np.random.beta(3, 1.2)  # Skewed toward high completion
+                        completion_ratio = np.clip(completion_ratio, 0.95, 1.0)
+                    else:
+                        # Less patient users: still "full" but lower completion
+                        completion_ratio = np.random.beta(2, 1.8)  # More varied completion
+                        completion_ratio = np.clip(completion_ratio, 0.85, 1.0)
+                    ms_played = int(song["duration_ms"] * completion_ratio)
+
                 elif listen_behavior == "skip":
-                    ms_played = random.randint(
-                        3000, min(CONFIG.skip_threshold_ms, int(song["duration_ms"]))
-                    )  # 3 seconds to skip threshold or full duration
+                    # Impatient users skip earlier, patient users skip later (if they skip at all)
+                    if user_patience < 0.3:
+                        # Very impatient: skip very early
+                        max_skip_time = min(
+                            CONFIG.skip_threshold_ms * 0.5, int(song["duration_ms"])
+                        )
+                        ms_played = random.randint(3000, max(3000, int(max_skip_time)))
+                    elif user_patience < 0.6:
+                        # Moderately impatient: normal skip timing
+                        ms_played = random.randint(
+                            5000, min(CONFIG.skip_threshold_ms, int(song["duration_ms"]))
+                        )
+                    else:
+                        # Patient users: skip later if they do skip
+                        min_skip_time = min(
+                            CONFIG.skip_threshold_ms * 0.7, int(song["duration_ms"] * 0.3)
+                        )
+                        ms_played = random.randint(
+                            int(min_skip_time),
+                            min(CONFIG.skip_threshold_ms, int(song["duration_ms"])),
+                        )
+
                 else:  # partial
-                    # For short songs, play at least 50%, for longer songs play 30-80%
-                    min_play = (
-                        int(song["duration_ms"] * 0.3)
-                        if song["duration_ms"] > 60000
-                        else int(song["duration_ms"] * 0.5)
-                    )
-                    max_play = int(song["duration_ms"] * 0.8)
-                    ms_played = random.randint(min_play, max_play)
+                    # Partial listening also influenced by user patience
+                    if user_patience > 0.6:
+                        # Patient users: listen to more of the song
+                        min_ratio = 0.5 if song["duration_ms"] > 60000 else 0.6
+                        max_ratio = 0.85
+                    else:
+                        # Impatient users: listen to less
+                        min_ratio = 0.3 if song["duration_ms"] > 60000 else 0.4
+                        max_ratio = 0.7
+
+                    completion_ratio = random.uniform(min_ratio, max_ratio)
+                    ms_played = int(song["duration_ms"] * completion_ratio)
 
                 sessions.append(
                     {

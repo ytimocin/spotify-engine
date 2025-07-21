@@ -72,9 +72,7 @@ def add_genre_affinity_scores(
     user_genre_dict = {}
     for user_id in user_genre_prefs_df["user_id"].unique():
         user_prefs = user_genre_prefs_df[user_genre_prefs_df["user_id"] == user_id]
-        user_genre_dict[user_id] = dict(
-            zip(user_prefs["genre_id"], user_prefs["affinity_score"])
-        )
+        user_genre_dict[user_id] = dict(zip(user_prefs["genre_id"], user_prefs["affinity_score"]))
 
     # Create song-genres lookup (songs can have multiple genres)
     song_genre_dict = {}
@@ -182,7 +180,9 @@ def main():
     if args.include_genres:
         try:
             print("\nLoading genre data...")
-            user_genre_prefs_df = pd.read_csv(f"{args.data_dir}/synthetic_user_genre_preferences.csv")
+            user_genre_prefs_df = pd.read_csv(
+                f"{args.data_dir}/synthetic_user_genre_preferences.csv"
+            )
             song_genres_df = pd.read_csv(f"{args.data_dir}/synthetic_song_genres.csv")
             print(f"- Loaded {len(user_genre_prefs_df):,} user genre preferences")
             print(f"- Loaded {len(song_genres_df):,} song-genre mappings")
@@ -201,11 +201,13 @@ def main():
     print(f"- Artists: {edge_data['artist_id'].nunique():,}")
     print(f"- Avg plays per edge: {edge_data['play_count'].mean():.1f}")
     print(f"- Avg completion ratio: {edge_data['avg_completion_ratio'].mean():.1%}")
-    
+
     if genre_data_available and "genre_affinity_score" in edge_data.columns:
         print(f"- Avg genre affinity: {edge_data['genre_affinity_score'].mean():.3f}")
-        print(f"- Genre affinity range: [{edge_data['genre_affinity_score'].min():.3f}, "
-              f"{edge_data['genre_affinity_score'].max():.3f}]")
+        print(
+            f"- Genre affinity range: [{edge_data['genre_affinity_score'].min():.3f}, "
+            f"{edge_data['genre_affinity_score'].max():.3f}]"
+        )
 
     # Save to parquet
     output_path = Path(args.output)

@@ -113,10 +113,15 @@ class AdvancedTrainer(BaseTrainer):
         # Create node indices
         x_dict = create_node_indices(graph)
 
+        # Gradient accumulation settings
+        accumulation_steps = self.training_config.get("gradient_accumulation_steps", 1)
+
         # Process in batches
-        for batch_edges in batch_edge_iterator(edge_index, batch_size):
+        for batch_idx, batch_edges in enumerate(batch_edge_iterator(edge_index, batch_size)):
             # Get embeddings
-            embeddings = self.model(x_dict, graph)
+            model_output = self.model(x_dict, graph)
+            # Handle both old model (returns dict) and new model (returns tuple)
+            embeddings = model_output[0] if isinstance(model_output, tuple) else model_output
 
             # Positive samples
             user_indices = batch_edges[0]
@@ -134,14 +139,25 @@ class AdvancedTrainer(BaseTrainer):
             # BPR loss
             loss = bpr_loss(pos_scores, neg_scores)
 
-            # Backward
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
+            # Scale loss by accumulation steps
+            loss = loss / accumulation_steps
 
-            total_loss += loss.item()
+            # Backward
+            loss.backward()
+
+            # Update weights every accumulation_steps
+            if (batch_idx + 1) % accumulation_steps == 0:
+                self.optimizer.step()
+                self.optimizer.zero_grad()
+
+            total_loss += loss.item() * accumulation_steps
             num_batches += 1
             self.global_step += 1
+
+        # Final step if there are remaining gradients
+        if num_batches % accumulation_steps != 0:
+            self.optimizer.step()
+            self.optimizer.zero_grad()
 
         return {"train_loss": total_loss / num_batches}
 
@@ -178,7 +194,9 @@ class AdvancedTrainer(BaseTrainer):
 
         # Get embeddings once
         with torch.no_grad():
-            embeddings = self.model(x_dict, graph)
+            model_output = self.model(x_dict, graph)
+            # Handle both old model (returns dict) and new model (returns tuple)
+            embeddings = model_output[0] if isinstance(model_output, tuple) else model_output
 
         # Build interactions dict
         interactions = {}

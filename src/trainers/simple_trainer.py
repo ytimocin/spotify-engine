@@ -43,7 +43,9 @@ class SimpleTrainer(BaseTrainer):
         # Process in batches
         for batch_edges in batch_edge_iterator(edge_index, batch_size):
             # Get embeddings
-            embeddings = self.model(x_dict, graph)
+            model_output = self.model(x_dict, graph)
+            # Handle both old model (returns dict) and new model (returns tuple)
+            embeddings = model_output[0] if isinstance(model_output, tuple) else model_output
 
             # Positive samples
             user_indices = batch_edges[0]
@@ -86,7 +88,9 @@ class SimpleTrainer(BaseTrainer):
 
         with torch.no_grad():
             # Get embeddings
-            embeddings = self.model(x_dict, graph)
+            model_output = self.model(x_dict, graph)
+            # Handle both old model (returns dict) and new model (returns tuple)
+            embeddings = model_output[0] if isinstance(model_output, tuple) else model_output
 
             for user_idx in user_indices:
                 # Get user's true interactions

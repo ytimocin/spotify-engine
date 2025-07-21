@@ -105,6 +105,11 @@ test-model:
 	@echo "Testing trained model..."
 	python -m src.test_model --num-users 3 --num-recs 5
 
+# Test enhanced model with genre support
+test-enhanced:
+	@echo "Testing enhanced GAT model..."
+	python scripts/test_enhanced_model.py --verbose
+
 # Compare models
 compare-models:
 	@echo "Comparing all trained models..."

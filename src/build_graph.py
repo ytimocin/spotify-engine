@@ -3,7 +3,7 @@ Build heterogeneous graph from edge data for music recommendations.
 
 Creates a PyTorch Geometric HeteroData object with:
 - Node types: user, song, artist, genre
-- Edge types: 
+- Edge types:
   - user->song (listens): with play_count, completion_ratio, edge_weight, genre_affinity
   - song->artist (by): which artist created the song
   - user->genre (prefers): user genre preferences with affinity scores
@@ -20,7 +20,7 @@ import torch
 from torch_geometric.data import HeteroData
 
 
-def build_music_graph(
+def build_music_graph(  # noqa: C901
     edge_df: pd.DataFrame,
     songs_df: pd.DataFrame,
     genres_df: pd.DataFrame = None,
@@ -46,7 +46,7 @@ def build_music_graph(
     users = edge_df["user_id"].unique()
     songs = edge_df["track_id"].unique()
     artists = edge_df["artist_id"].unique()
-    
+
     # Handle genres if available
     has_genres = genres_df is not None
     if has_genres:
@@ -59,8 +59,10 @@ def build_music_graph(
     song_to_idx = {song: idx for idx, song in enumerate(songs)}
     artist_to_idx = {artist: idx for idx, artist in enumerate(artists)}
 
-    print(f"Graph nodes: {len(users)} users, {len(songs)} songs, {len(artists)} artists", 
-          f", {len(genres)} genres" if has_genres else "")
+    print(
+        f"Graph nodes: {len(users)} users, {len(songs)} songs, {len(artists)} artists",
+        f", {len(genres)} genres" if has_genres else "",
+    )
 
     # Create graph
     graph = HeteroData()
@@ -90,13 +92,15 @@ def build_music_graph(
 
     # Combine: 70% completion ratio + 30% play frequency
     edge_weights = 0.7 * completion_ratios + 0.3 * normalized_plays
-    
+
     # Check if genre affinity scores are available
     if "genre_affinity_score" in edge_df.columns:
         genre_affinities = edge_df["genre_affinity_score"].values
         # Adjust edge weights to include genre affinity: 60% completion + 20% play + 20% genre
         edge_weights = 0.6 * completion_ratios + 0.2 * normalized_plays + 0.2 * genre_affinities
-        edge_attrs = np.column_stack([play_counts, completion_ratios, genre_affinities, edge_weights])
+        edge_attrs = np.column_stack(
+            [play_counts, completion_ratios, genre_affinities, edge_weights]
+        )
     else:
         edge_attrs = np.column_stack([play_counts, completion_ratios, edge_weights])
 
@@ -123,15 +127,14 @@ def build_music_graph(
         if user_genre_prefs_df is not None:
             user_genre_edges = []
             user_genre_affinities = []
-            
+
             for _, row in user_genre_prefs_df.iterrows():
                 if row["user_id"] in user_to_idx and row["genre_id"] in genre_to_idx:
-                    user_genre_edges.append([
-                        user_to_idx[row["user_id"]], 
-                        genre_to_idx[row["genre_id"]]
-                    ])
+                    user_genre_edges.append(
+                        [user_to_idx[row["user_id"]], genre_to_idx[row["genre_id"]]]
+                    )
                     user_genre_affinities.append(row["affinity_score"])
-            
+
             if user_genre_edges:
                 graph["user", "prefers", "genre"].edge_index = torch.tensor(
                     user_genre_edges, dtype=torch.long
@@ -139,44 +142,42 @@ def build_music_graph(
                 graph["user", "prefers", "genre"].edge_attr = torch.tensor(
                     user_genre_affinities, dtype=torch.float32
                 ).unsqueeze(1)
-        
+
         # Song->Genre edges
         if song_genres_df is not None:
             song_genre_edges = []
-            
+
             for _, row in song_genres_df.iterrows():
                 if row["track_id"] in song_to_idx and row["genre_id"] in genre_to_idx:
-                    song_genre_edges.append([
-                        song_to_idx[row["track_id"]], 
-                        genre_to_idx[row["genre_id"]]
-                    ])
-            
+                    song_genre_edges.append(
+                        [song_to_idx[row["track_id"]], genre_to_idx[row["genre_id"]]]
+                    )
+
             if song_genre_edges:
                 graph["song", "has", "genre"].edge_index = torch.tensor(
                     song_genre_edges, dtype=torch.long
                 ).t()
-        
+
         # Artist->Genre edges
         if artist_genres_df is not None:
             artist_genre_edges = []
-            
+
             for _, row in artist_genres_df.iterrows():
                 if row["artist_id"] in artist_to_idx and row["genre_id"] in genre_to_idx:
-                    artist_genre_edges.append([
-                        artist_to_idx[row["artist_id"]], 
-                        genre_to_idx[row["genre_id"]]
-                    ])
-            
+                    artist_genre_edges.append(
+                        [artist_to_idx[row["artist_id"]], genre_to_idx[row["genre_id"]]]
+                    )
+
             if artist_genre_edges:
                 graph["artist", "performs", "genre"].edge_index = torch.tensor(
                     artist_genre_edges, dtype=torch.long
                 ).t()
 
     # Print edge statistics
-    print(f"Graph edges:")
+    print("Graph edges:")
     print(f"- User-Song: {edge_index.shape[1]}")
     print(f"- Song-Artist: {len(song_artist_edges)}")
-    
+
     if has_genres:
         if ("user", "prefers", "genre") in graph.edge_types:
             print(f"- User-Genre: {graph['user', 'prefers', 'genre'].edge_index.shape[1]}")
@@ -226,16 +227,20 @@ def main():
             # Try parquet files first (faster), fall back to CSV
             try:
                 genres_df = pd.read_parquet(f"{args.data_dir}/genres.parquet")
-                user_genre_prefs_df = pd.read_parquet(f"{args.data_dir}/user_genre_preferences.parquet")
+                user_genre_prefs_df = pd.read_parquet(
+                    f"{args.data_dir}/user_genre_preferences.parquet"
+                )
                 song_genres_df = pd.read_parquet(f"{args.data_dir}/song_genres.parquet")
                 artist_genres_df = pd.read_parquet(f"{args.data_dir}/artist_genres.parquet")
             except FileNotFoundError:
                 # Fall back to CSV files
                 genres_df = pd.read_csv(f"{args.data_dir}/synthetic_genres.csv")
-                user_genre_prefs_df = pd.read_csv(f"{args.data_dir}/synthetic_user_genre_preferences.csv")
+                user_genre_prefs_df = pd.read_csv(
+                    f"{args.data_dir}/synthetic_user_genre_preferences.csv"
+                )
                 song_genres_df = pd.read_csv(f"{args.data_dir}/synthetic_song_genres.csv")
                 artist_genres_df = pd.read_csv(f"{args.data_dir}/synthetic_artist_genres.csv")
-            
+
             print(f"- Loaded {len(genres_df)} genres")
             print(f"- Loaded {len(user_genre_prefs_df)} user-genre preferences")
             print(f"- Loaded {len(song_genres_df)} song-genre mappings")
@@ -261,9 +266,9 @@ def main():
     print(f"- User nodes: {graph['user'].num_nodes}")
     print(f"- Song nodes: {graph['song'].num_nodes}")
     print(f"- Artist nodes: {graph['artist'].num_nodes}")
-    if args.include_genres and 'genre' in graph.node_types:
+    if args.include_genres and "genre" in graph.node_types:
         print(f"- Genre nodes: {graph['genre'].num_nodes}")
-    print(f"\nEdge types:")
+    print("\nEdge types:")
     for edge_type in graph.edge_types:
         src, rel, dst = edge_type
         num_edges = graph[edge_type].edge_index.shape[1]

@@ -17,6 +17,7 @@ except ImportError:
     HAS_TENSORBOARD = False
     SummaryWriter = None  # type: ignore
 
+from src.models.enhanced_gat_recommender import EnhancedGATRecommender
 from src.models.gat_recommender import GATRecommender
 
 logging.basicConfig(level=logging.INFO)
@@ -70,7 +71,24 @@ class BaseTrainer(ABC):
 
     def _create_model(self) -> nn.Module:
         """Create and initialize the model."""
-        model = GATRecommender(**self.model_config)
+        # Check if we should use enhanced model
+        use_enhanced = self.model_config.get("use_enhanced", False)
+        num_genres = self.model_config.get("num_genres", 0)
+
+        if use_enhanced or num_genres > 0:
+            # Use enhanced model with genre support
+            model_class = EnhancedGATRecommender
+            logger.info("Using EnhancedGATRecommender with genre support")
+        else:
+            # Use original model
+            model_class = GATRecommender
+            logger.info("Using standard GATRecommender")
+
+        # Create a copy of model config and remove trainer-specific keys
+        model_params = self.model_config.copy()
+        model_params.pop("use_enhanced", None)  # Remove if present
+
+        model = model_class(**model_params)
         logger.info("Model parameters: %s", f"{sum(p.numel() for p in model.parameters()):,}")
         return model
 
