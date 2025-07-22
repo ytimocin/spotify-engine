@@ -6,10 +6,10 @@ from typing import Any, Dict, Optional
 import torch
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
-from src.data_utils import batch_edge_iterator, split_edges_by_user
-from src.losses import bpr_loss
-from src.metrics import evaluate_batch
-from src.utils import create_node_indices
+from src.common.data_utils import batch_edge_iterator, split_edges_by_user
+from src.common.losses import bpr_loss
+from src.common.metrics import evaluate_batch
+from src.common.utils import create_node_indices
 
 from .base_trainer import BaseTrainer
 

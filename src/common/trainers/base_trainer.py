@@ -17,8 +17,8 @@ except ImportError:
     HAS_TENSORBOARD = False
     SummaryWriter = None  # type: ignore
 
-from src.models.enhanced_gat_recommender import EnhancedGATRecommender
-from src.models.gat_recommender import GATRecommender
+from src.common.models.enhanced_gat_recommender import EnhancedGATRecommender
+from src.common.models.gat_recommender import GATRecommender
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

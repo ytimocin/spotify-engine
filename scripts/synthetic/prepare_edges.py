@@ -144,19 +144,19 @@ def main():
     parser.add_argument(
         "--input",
         type=str,
-        default="data/synthetic_sessions.csv",
+        default="data/synthetic/synthetic_sessions.csv",
         help="Input sessions CSV file",
     )
     parser.add_argument(
         "--output",
         type=str,
-        default="data/edge_list.parquet",
+        default="data/synthetic/aggregated_edge_list.parquet",
         help="Output edge list Parquet file",
     )
     parser.add_argument(
         "--data-dir",
         type=str,
-        default="data",
+        default="data/synthetic",
         help="Directory containing all data files",
     )
     parser.add_argument(

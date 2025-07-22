@@ -57,20 +57,26 @@ Thumbs.db
 .LSOverride
 
 # Project Data (but keep directory structure)
-data/*.csv
-data/*.parquet
-data/*.pt
-data/*.json
-!data/.gitkeep
-!data/README.md
+data/synthetic/*.csv
+data/synthetic/*.parquet
+data/synthetic/*.pt
+data/synthetic/*.json
+data/kaggle/*.csv
+data/kaggle/*.parquet
+data/kaggle/*.pt
+data/kaggle/*.json
+!data/kaggle/spotify_dataset.csv
+!data/kaggle/tracks_features.csv
+!data/**/README.md
+!data/**/.gitkeep
 
 # Model Checkpoints (but keep directory)
-models/*.ckpt
-models/*.pt
-models/*.pth
-models/*.json
-!models/.gitkeep
-!models/README.md
+models/**/*.ckpt
+models/**/*.pt
+models/**/*.pth
+models/**/*.json
+!models/**/README.md
+!models/**/.gitkeep
 
 # Logs and Outputs
 logs/

@@ -10,18 +10,18 @@ from pathlib import Path
 
 import torch
 
-from src.explainability import RecommendationExplainer, format_explanation
-from src.metrics_extended import evaluate_genre_aware_recommendations
-from src.models.enhanced_gat_recommender import EnhancedGATRecommender
-from src.visualization.attention_viz import analyze_genre_attention
-
 # Add parent directory to path
-sys.path.append(str(Path(__file__).parent.parent))
+sys.path.append(str(Path(__file__).parent.parent.parent))
+
+from src.common.explainability import RecommendationExplainer, format_explanation
+from src.common.metrics_extended import evaluate_genre_aware_recommendations
+from src.common.models.enhanced_gat_recommender import EnhancedGATRecommender
+from src.common.visualization.attention_viz import analyze_genre_attention
 
 
 def main():  # noqa: C901
     parser = argparse.ArgumentParser(description="Test enhanced GAT model")
-    parser.add_argument("--graph", type=str, default="data/graph.pt", help="Graph file")
+    parser.add_argument("--graph", type=str, default="data/synthetic/graph.pt", help="Graph file")
     parser.add_argument("--user", type=int, default=0, help="User ID to test")
     parser.add_argument("--top-k", type=int, default=5, help="Number of recommendations")
     parser.add_argument("--verbose", action="store_true", help="Verbose output")

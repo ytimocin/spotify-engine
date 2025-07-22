@@ -13,7 +13,7 @@ import logging
 
 import torch
 
-from src.trainers import AdvancedTrainer
+from src.common.trainers import AdvancedTrainer
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ def main():
     parser = argparse.ArgumentParser(description="Train GAT recommender with AdvancedTrainer")
 
     # Data arguments
-    parser.add_argument("--graph", type=str, default="data/graph.pt", help="Input graph file")
+    parser.add_argument("--graph", type=str, default="data/synthetic/graph.pt", help="Input graph file")
     parser.add_argument("--val-ratio", type=float, default=0.15, help="Validation split ratio")
     parser.add_argument("--test-ratio", type=float, default=0.15, help="Test split ratio")
 
@@ -49,7 +49,7 @@ def main():
 
     # Output arguments
     parser.add_argument(
-        "--output-dir", type=str, default="models/advanced", help="Output directory"
+        "--output-dir", type=str, default="models/synthetic/advanced", help="Output directory"
     )
     parser.add_argument(
         "--tensorboard-dir", type=str, default=None, help="Tensorboard log directory"

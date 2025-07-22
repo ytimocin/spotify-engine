@@ -58,78 +58,78 @@ install:
 # Generate data with different sizes
 generate:
 	@echo "Generating synthetic data with default settings..."
-	python scripts/generate_synthetic_data.py --users 1000 --songs 5000 --artists 500
+	python scripts/synthetic/generate_data.py --users 1000 --songs 5000 --artists 500
 
 generate-small:
 	@echo "Generating small synthetic dataset..."
-	python scripts/generate_synthetic_data.py --users 100 --songs 500 --artists 50 --days 7
+	python scripts/synthetic/generate_data.py --users 100 --songs 500 --artists 50 --days 7
 
 generate-large:
 	@echo "Generating large synthetic dataset..."
-	python scripts/generate_synthetic_data.py --users 5000 --songs 10000 --artists 1000
+	python scripts/synthetic/generate_data.py --users 5000 --songs 10000 --artists 1000
 
 # Generate data and build graph
 data:
 	@echo "Generating synthetic data..."
-	python scripts/generate_synthetic_data.py
+	python scripts/synthetic/generate_data.py
 	@echo "Validating data..."
-	python scripts/validate_data.py
+	python scripts/common/validate_data.py --data-dir data/synthetic
 	@echo "Preparing edge list..."
-	python scripts/prepare_mssd.py
+	python scripts/synthetic/prepare_edges.py
 	@echo "Building graph..."
-	python -m src.build_graph
+	python -m src.synthetic.build_graph
 	@echo "Data pipeline complete!"
 
 # Train model with SimpleTrainer
 train:
 	@echo "Training GAT model with SimpleTrainer..."
-	python -m src.train --epochs 20 --output-dir models
+	python -m src.synthetic.train --epochs 20 --output-dir models
 	@echo "Training complete! Check models/simple/"
 
 # Train with AdvancedTrainer (recommended)
 train-improved:
 	@echo "Training GAT model with AdvancedTrainer..."
-	python -m src.train_improved --epochs 50 --patience 5 --use-scheduler --output-dir models
+	python -m src.synthetic.train_improved --epochs 50 --patience 5 --use-scheduler --output-dir models
 	@echo "Training complete! Check models/advanced/"
 
 # Quick training (fewer epochs)
 train-quick:
-	python -m src.train --epochs 5
+	python -m src.synthetic.train --epochs 5
 
 # Launch demo
 demo:
-	jupyter notebook notebooks/quick_demo.ipynb
+	jupyter notebook notebooks/synthetic_demo.ipynb
 
 # Test trained model
 test-model:
 	@echo "Testing trained model..."
-	python -m src.test_model --num-users 3 --num-recs 5
+	python scripts/synthetic/test_model.py --num-users 3 --num-recs 5
 
 # Test enhanced model with genre support
 test-enhanced:
 	@echo "Testing enhanced GAT model..."
-	python scripts/test_enhanced_model.py --verbose
+	python scripts/synthetic/test_model.py --verbose
 
 # Compare models
 compare-models:
 	@echo "Comparing all trained models..."
-	python -m src.test_model --compare
+	python scripts/synthetic/test_model.py --compare
 
 # Run performance benchmarks
 benchmark:
 	@echo "Running performance benchmarks..."
-	python scripts/benchmark_performance.py --small --runs 3
+	python scripts/common/benchmark.py --small --runs 3
 
 # Generate data profile report
 profile:
 	@echo "Generating data profile report..."
-	python scripts/visualize_data_profile.py
+	python scripts/common/visualize_profile.py
 	@echo "Profile report saved to data/profile_report/"
 
 # Validate configuration file
 validate-config:
 	@echo "Validating configuration file..."
-	python scripts/validate_config.py config/default.yaml
+	python scripts/common/validate_config.py config/default.yaml
 
 # Run unit tests
 test:

@@ -777,7 +777,7 @@ def main():
     parser.add_argument(
         "--output",
         type=str,
-        default="data/synthetic_sessions.csv",
+        default="data/synthetic/synthetic_sessions.csv",
         help="Output file path",
     )
     parser.add_argument("--seed", type=int, default=42, help="Random seed")

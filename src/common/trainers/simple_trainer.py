@@ -6,10 +6,10 @@ from typing import Dict
 import numpy as np
 import torch
 
-from src.data_utils import batch_edge_iterator
-from src.losses import bpr_loss
-from src.metrics import recall_at_k
-from src.utils import create_node_indices
+from src.common.data_utils import batch_edge_iterator
+from src.common.losses import bpr_loss
+from src.common.metrics import recall_at_k
+from src.common.utils import create_node_indices
 
 from .base_trainer import BaseTrainer
 

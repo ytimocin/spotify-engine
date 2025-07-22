@@ -1,15 +1,15 @@
 """Spotify Engine - Graph-based music recommendation system."""
 
-from .explainability import RecommendationExplainer, format_explanation
-from .metrics import evaluate_batch, ndcg_at_k, recall_at_k
-from .metrics_extended import (
+from .common.explainability import RecommendationExplainer, format_explanation
+from .common.metrics import evaluate_batch, ndcg_at_k, recall_at_k
+from .common.metrics_extended import (
     coverage_metrics,
     evaluate_genre_aware_recommendations,
     genre_diversity_score,
     genre_precision_at_k,
 )
-from .models import EnhancedGATRecommender, GATRecommender
-from .trainers import AdvancedTrainer, SimpleTrainer
+from .common.models import EnhancedGATRecommender, GATRecommender
+from .common.trainers import AdvancedTrainer, SimpleTrainer
 
 __version__ = "0.2.0"
 
