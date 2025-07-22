@@ -1,227 +1,65 @@
-.PHONY: help setup install clean data train demo test lint format all
+.PHONY: help setup install clean synthetic-all kaggle-all lint format
 
 # Default target
 help:
-	@echo "Spotify Engine - Available commands:"
+	@echo "Spotify Engine - Music Recommendation System"
 	@echo ""
-	@echo "Setup & Installation:"
+	@echo "Setup:"
 	@echo "  make setup          - Create virtual environment"
-	@echo "  make install        - Install core dependencies"
-	@echo "  make dev-install    - Install development tools (formatters, linters)"
+	@echo "  make install        - Install dependencies"
 	@echo ""
-	@echo "Data Generation:"
-	@echo "  make generate       - Generate synthetic data with default settings"
-	@echo "  make generate-small - Generate small dataset (100 users)"
-	@echo "  make generate-large - Generate large dataset (5000 users)"
-	@echo "  make profile        - Generate data profile visualizations"
-	@echo "  make benchmark      - Run performance benchmarks"
+	@echo "Pipelines:"
+	@echo "  make synthetic-all  - Run synthetic data pipeline (session-based)"
+	@echo "  make kaggle-all     - Run Kaggle data pipeline (playlist-based)"
 	@echo ""
-	@echo "Main Pipeline:"
-	@echo "  make data           - Generate synthetic data and build graph"
-	@echo "  make train          - Train the GAT model (basic)"
-	@echo "  make train-improved - Train with validation & early stopping (recommended)"
-	@echo "  make test-model     - Test the trained model and show recommendations"
-	@echo "  make compare-models - Compare all available models"
-	@echo "  make demo           - Launch Jupyter notebook demo"
-	@echo "  make all            - Run full pipeline (data + train)"
-	@echo ""
-	@echo "Code Quality:"
-	@echo "  make format         - Auto-format code with black & isort"
-	@echo "  make format-check   - Check formatting without changes"
-	@echo "  make lint           - Run flake8 and pylint"
-	@echo "  make type-check     - Run mypy type checking"
-	@echo "  make quality        - Run all quality checks"
-	@echo "  make fix            - Auto-fix code issues"
-	@echo "  make validate-config- Validate YAML configuration files"
-	@echo ""
-	@echo "Other:"
-	@echo "  make test           - Run tests"
-	@echo "  make clean          - Remove generated files and cache"
-	@echo "  make clean-all      - Remove everything including venv"
+	@echo "Development:"
+	@echo "  make lint           - Check code quality"
+	@echo "  make format         - Auto-format code"
+	@echo "  make clean          - Remove generated files"
 
 # Setup virtual environment
 setup:
 	python3 -m venv .venv
-	@echo "Virtual environment created. Run:"
-	@echo "  source .venv/bin/activate  # On macOS/Linux"
-	@echo "  .venv\\Scripts\\activate     # On Windows"
-	@echo "Then run: make install"
+	@echo "Run: source .venv/bin/activate"
 
 # Install dependencies
 install:
 	pip install --upgrade pip
-	pip install torch torchvision torchaudio
 	pip install -r requirements.txt
-	pip install torch-geometric
-	@echo "Dependencies installed successfully!"
+	pip install torch torch-geometric
+	@echo "✅ Dependencies installed"
 
-# Generate data with different sizes
-generate:
-	@echo "Generating synthetic data with default settings..."
-	python scripts/synthetic/generate_data.py --users 1000 --songs 5000 --artists 500
-
-generate-small:
-	@echo "Generating small synthetic dataset..."
-	python scripts/synthetic/generate_data.py --users 100 --songs 500 --artists 50 --days 7
-
-generate-large:
-	@echo "Generating large synthetic dataset..."
-	python scripts/synthetic/generate_data.py --users 5000 --songs 10000 --artists 1000
-
-# Generate data and build graph
-data:
-	@echo "Generating synthetic data..."
+# Synthetic pipeline (session-based recommendations)
+synthetic-all:
+	@echo "🎵 Running synthetic data pipeline..."
 	python scripts/synthetic/generate_data.py
-	@echo "Validating data..."
-	python scripts/common/validate_data.py --data-dir data/synthetic
-	@echo "Preparing edge list..."
 	python scripts/synthetic/prepare_edges.py
-	@echo "Building graph..."
 	python -m src.synthetic.build_graph
-	@echo "Data pipeline complete!"
+	python -m src.synthetic.train_improved --epochs 20
+	python -m src.synthetic.test_model
+	@echo "✅ Synthetic pipeline complete!"
 
-# Train model with SimpleTrainer
-train:
-	@echo "Training GAT model with SimpleTrainer..."
-	python -m src.synthetic.train --epochs 20 --output-dir models
-	@echo "Training complete! Check models/simple/"
+# Kaggle pipeline (playlist-based recommendations)
+kaggle-all:
+	@echo "📋 Running Kaggle playlist pipeline..."
+	python scripts/kaggle/prepare_data.py
+	python scripts/kaggle/build_graph.py
+	python -m src.kaggle.train --epochs 20
+	python scripts/kaggle/test_model.py
+	@echo "✅ Kaggle pipeline complete!"
 
-# Train with AdvancedTrainer (recommended)
-train-improved:
-	@echo "Training GAT model with AdvancedTrainer..."
-	python -m src.synthetic.train_improved --epochs 50 --patience 5 --use-scheduler --output-dir models
-	@echo "Training complete! Check models/advanced/"
-
-# Quick training (fewer epochs)
-train-quick:
-	python -m src.synthetic.train --epochs 5
-
-# Launch demo
-demo:
-	jupyter notebook notebooks/synthetic_demo.ipynb
-
-# Test trained model
-test-model:
-	@echo "Testing trained model..."
-	python scripts/synthetic/test_model.py --num-users 3 --num-recs 5
-
-# Test enhanced model with genre support
-test-enhanced:
-	@echo "Testing enhanced GAT model..."
-	python scripts/synthetic/test_model.py --verbose
-
-# Compare models
-compare-models:
-	@echo "Comparing all trained models..."
-	python scripts/synthetic/test_model.py --compare
-
-# Run performance benchmarks
-benchmark:
-	@echo "Running performance benchmarks..."
-	python scripts/common/benchmark.py --small --runs 3
-
-# Generate data profile report
-profile:
-	@echo "Generating data profile report..."
-	python scripts/common/visualize_profile.py
-	@echo "Profile report saved to data/profile_report/"
-
-# Validate configuration file
-validate-config:
-	@echo "Validating configuration file..."
-	python scripts/common/validate_config.py config/default.yaml
-
-# Run unit tests
-test:
-	@echo "Running unit tests..."
-	pytest tests/ -v --cov=src --cov-report=html --cov-report=term
-
-# Install development dependencies
-dev-install:
-	pip install -r requirements-dev.txt
-	@echo "Development tools installed!"
-
-# Format code
-format:
-	@echo "Formatting with black..."
-	black src/ scripts/ 
-	@echo "Sorting imports with isort..."
-	isort src/ scripts/
-	@echo "Code formatting complete!"
-
-# Check code formatting (without changing files)
-format-check:
-	@echo "Checking code format..."
-	black src/ scripts/ --check --diff
-	isort src/ scripts/ --check-only --diff
-
-# Lint code
+# Code quality
 lint:
-	@echo "Running flake8..."
 	flake8 src/ scripts/
-	@echo "Running pylint..."
-	pylint src/ scripts/ || true
-	@echo "Linting complete!"
 
-# Type checking
-type-check:
-	@echo "Running mypy type checks..."
-	mypy src/
-
-# Run all quality checks
-quality: format-check lint type-check
-	@echo "All quality checks complete!"
-
-# Auto-fix code issues
-fix: format
-	@echo "Running auto-fixes..."
-	# Add any additional auto-fix commands here
-	@echo "Auto-fix complete!"
-
-# Pre-commit setup
-pre-commit-install:
-	pre-commit install
-	@echo "Pre-commit hooks installed!"
-
-pre-commit-run:
-	pre-commit run --all-files
+format:
+	black src/ scripts/
+	isort src/ scripts/
 
 # Clean generated files
 clean:
 	rm -rf __pycache__ */__pycache__ */*/__pycache__
-	rm -rf .pytest_cache .coverage htmlcov/
-	rm -rf *.egg-info dist/ build/
-	rm -f data/*.csv data/*.parquet data/*.pt data/*.json
-	rm -f models/*.ckpt models/*.pt models/*.json
-	rm -rf data/profile_report/
-	rm -f benchmark_results_*.json
-	find . -type f -name "*.pyc" -delete
-	find . -type f -name "*.pyo" -delete
-	find . -type f -name "*~" -delete
-	find . -type d -name ".ipynb_checkpoints" -exec rm -rf {} + || true
-	@echo "Cleaned generated files and cache"
-
-# Clean everything including venv
-clean-all: clean
-	rm -rf .venv/
-	@echo "Removed virtual environment"
-
-# Run full pipeline
-all: data train
-	@echo "Full pipeline complete!"
-
-# Development shortcuts (removed - duplicate of dev-install above)
-
-run: data train demo
-
-# Check environment
-check-env:
-	@python --version
-	@pip --version
-	@echo "PyTorch: $$(python -c 'import torch; print(torch.__version__)' 2>/dev/null || echo 'Not installed')"
-	@echo "PyG: $$(python -c 'import torch_geometric; print(torch_geometric.__version__)' 2>/dev/null || echo 'Not installed')"
-
-# Generate requirements
-freeze:
-	pip freeze > requirements-full.txt
-	@echo "Full requirements saved to requirements-full.txt"
+	rm -rf data/synthetic/*.csv data/synthetic/*.parquet data/synthetic/*.pt
+	rm -rf data/kaggle/*.parquet data/kaggle/*.pt
+	rm -rf models/synthetic/* models/kaggle/*
+	@echo "🧹 Cleaned generated files"

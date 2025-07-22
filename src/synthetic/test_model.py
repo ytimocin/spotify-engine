@@ -16,26 +16,50 @@ import numpy as np
 import pandas as pd
 import torch
 
-from src.models.gat_recommender import GATRecommender
-from src.utils import create_node_indices
+from src.common.models.gat_recommender import GATRecommender
+from src.common.models.enhanced_gat_recommender import EnhancedGATRecommender
+from src.common.utils import create_node_indices
 
 
-def load_model_and_data(checkpoint_path: str, graph_path: str) -> Tuple[GATRecommender, dict, dict]:
+def load_model_and_data(checkpoint_path: str, graph_path: str) -> Tuple[torch.nn.Module, dict, dict]:
     """Load model from checkpoint and graph data."""
     # Load graph
     print(f"Loading graph from: {graph_path}")
-    graph = torch.load(graph_path)
+    graph = torch.load(graph_path, weights_only=False)
 
     # Load checkpoint
     print(f"Loading model from: {checkpoint_path}")
-    checkpoint = torch.load(checkpoint_path)
+    checkpoint = torch.load(checkpoint_path, weights_only=False)
 
-    # Create model
-    model = GATRecommender(
-        num_users=checkpoint.get("num_users", graph["user"].num_nodes),
-        num_songs=checkpoint.get("num_songs", graph["song"].num_nodes),
-        num_artists=checkpoint.get("num_artists", graph["artist"].num_nodes),
-    )
+    # Get model config and class from checkpoint
+    model_config = checkpoint.get("model_config", {})
+    model_class_name = checkpoint.get("model_class")
+    
+    if not model_class_name:
+        raise ValueError("Checkpoint missing 'model_class'. Please retrain the model with the updated trainer.")
+    
+    # Create the exact model class that was used during training
+    print(f"Loading model class from checkpoint: {model_class_name}")
+    
+    if model_class_name == "EnhancedGATRecommender":
+        model = EnhancedGATRecommender(
+            num_users=model_config.get("num_users", graph["user"].num_nodes),
+            num_songs=model_config.get("num_songs", graph["song"].num_nodes),
+            num_artists=model_config.get("num_artists", graph["artist"].num_nodes),
+            num_genres=model_config.get("num_genres", graph["genre"].num_nodes if "genre" in graph.node_types else 35),
+            embedding_dim=model_config.get("embedding_dim", 32),
+            heads=model_config.get("heads", 4),
+        )
+    elif model_class_name == "GATRecommender":
+        model = GATRecommender(
+            num_users=model_config.get("num_users", graph["user"].num_nodes),
+            num_songs=model_config.get("num_songs", graph["song"].num_nodes),
+            num_artists=model_config.get("num_artists", graph["artist"].num_nodes),
+            embedding_dim=model_config.get("embedding_dim", 32),
+            heads=model_config.get("heads", 4),
+        )
+    else:
+        raise ValueError(f"Unknown model class in checkpoint: {model_class_name}")
 
     # Load weights
     model.load_state_dict(checkpoint["model_state_dict"])
@@ -69,7 +93,7 @@ def show_sample_recommendations(
     graph,
     num_users: int = 5,
     num_recs: int = 10,
-    songs_df_path: str = "data/synthetic_songs.csv",
+    songs_df_path: str = "data/synthetic/synthetic_songs.csv",
 ) -> None:
     """Show sample recommendations with explanations."""
     print(f"\n{'=' * 80}")
@@ -123,7 +147,12 @@ def show_sample_recommendations(
                 if attention is not None and len(user_songs) > 0:
                     print("\nInfluenced by your listening history:")
                     # Get attention weights for this user
-                    edge_idx, attn_weights = attention
+                    if isinstance(attention, tuple) and len(attention) == 2:
+                        edge_idx, attn_weights = attention
+                    else:
+                        # Handle case where attention might be in a different format
+                        print("  (Attention weights not available in expected format)")
+                        continue
 
                     # Find edges from this user
                     user_edges = (edge_idx[0] == user_idx).nonzero(as_tuple=True)[0]
@@ -209,9 +238,9 @@ def main():
     parser = argparse.ArgumentParser(description="Test trained GAT recommender models")
 
     parser.add_argument(
-        "--model", type=str, default="models/model_improved.ckpt", help="Path to model checkpoint"
+        "--model", type=str, default="models/synthetic/advanced/best_model.pt", help="Path to model checkpoint"
     )
-    parser.add_argument("--graph", type=str, default="data/graph.pt", help="Path to graph file")
+    parser.add_argument("--graph", type=str, default="data/synthetic/graph.pt", help="Path to graph file")
     parser.add_argument(
         "--num-users",
         type=int,
@@ -225,7 +254,7 @@ def main():
     parser.add_argument(
         "--songs-metadata",
         type=str,
-        default="data/synthetic_songs.csv",
+        default="data/synthetic/synthetic_songs.csv",
         help="Path to songs metadata CSV",
     )
 
@@ -234,9 +263,9 @@ def main():
     if args.compare:
         # Compare all available models
         model_paths = [
-            "models/model.ckpt",
-            "models/model_improved.ckpt",
-            "models/checkpoints/best_model.ckpt",
+            "models/synthetic/simple/model.pt",
+            "models/synthetic/advanced/model_improved.pt",
+            "models/synthetic/advanced/best_model.pt",
         ]
         compare_models(model_paths, args.graph, args.num_users)
     else:

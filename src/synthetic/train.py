@@ -43,7 +43,7 @@ def main():
 
     # Load graph
     logger.info("Loading graph from: %s", args.graph)
-    graph = torch.load(args.graph)
+    graph = torch.load(args.graph, weights_only=False)
 
     # Model configuration
     model_config = {

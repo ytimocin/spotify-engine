@@ -177,6 +177,7 @@ class BaseTrainer(ABC):
             "metrics": metrics or {},
             "model_config": self.model_config,
             "training_config": self.training_config,
+            "model_class": self.model.__class__.__name__,  # Store the actual model class name
         }
 
         # Regular checkpoint
@@ -191,7 +192,7 @@ class BaseTrainer(ABC):
 
     def load_checkpoint(self, checkpoint_path: str):
         """Load model from checkpoint."""
-        checkpoint = torch.load(checkpoint_path)
+        checkpoint = torch.load(checkpoint_path, weights_only=False)
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         self.current_epoch = checkpoint.get("epoch", 0)
@@ -209,6 +210,7 @@ class BaseTrainer(ABC):
                 "num_users": self.model_config["num_users"],
                 "num_songs": self.model_config["num_songs"],
                 "num_artists": self.model_config["num_artists"],
+                "model_class": self.model.__class__.__name__,  # Store the actual model class name
             },
             final_path,
         )

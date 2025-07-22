@@ -30,7 +30,7 @@ def main():  # noqa: C901
 
     # Load graph
     print(f"Loading graph from {args.graph}...")
-    graph = torch.load(args.graph)
+    graph = torch.load(args.graph, weights_only=False)
 
     # Check if graph has genre information
     has_genres = "genre" in graph.node_types
