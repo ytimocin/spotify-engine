@@ -7,6 +7,7 @@ The actual model will be implemented later.
 
 import argparse
 import logging
+
 import torch
 
 logging.basicConfig(level=logging.INFO)
