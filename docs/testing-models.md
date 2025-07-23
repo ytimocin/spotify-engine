@@ -1,49 +1,87 @@
 # Testing Trained Models
 
-This guide explains how to test and evaluate your trained GAT models.
+This guide explains how to test and evaluate your trained models for both pipelines.
 
 ## Quick Test
 
-After training a model, test it with:
+### Synthetic Pipeline (Session-based)
+
+After training a synthetic model:
 
 ```bash
+# Test the model
+python -m src.synthetic.test_model
+
+# Or use the shortcut
 make test-model
 ```
 
 This will:
-
 - Load the model (prioritizes advanced trainer output)
 - Show test set metrics (if model was trained with validation splits)
-- Display sample recommendations for 3 users
+- Display sample recommendations for users
 - Show attention-based explanations
+
+### Kaggle Pipeline (Playlist-based)
+
+After training a Kaggle model:
+
+```bash
+# Test the model
+python scripts/kaggle/test_model.py
+
+# Test with explanations
+python scripts/kaggle/test_model.py --explain
+
+# Test specific playlist
+python scripts/kaggle/test_model.py --playlist 100 --top-k 20
+```
+
+This will:
+- Load the trained playlist model
+- Show playlist recommendations
+- Display genre and artist influence explanations
 
 ## Detailed Testing
 
-### Test Specific Model
+### Synthetic Model Testing
 
 ```bash
-# Test models from different trainers
-python -m src.test_model --model models/advanced/final_model.pt  # AdvancedTrainer
-python -m src.test_model --model models/simple/final_model.pt    # SimpleTrainer
+# Test specific model checkpoints
+python -m src.synthetic.test_model --model models/synthetic/advanced/final_model.pt
+python -m src.synthetic.test_model --model models/synthetic/simple/final_model.pt
 
-# Test best checkpoint
-python -m src.test_model --model models/advanced/best_model.pt
+# Test with custom parameters
+python -m src.synthetic.test_model --user 42 --top-k 10 --verbose
+```
+
+### Kaggle Model Testing
+
+```bash
+# Test specific model
+python scripts/kaggle/test_model.py --model models/kaggle/best_model.pt
+
+# Test multiple playlists
+python scripts/kaggle/test_model.py --playlist 0 --top-k 15 --explain
 ```
 
 ### Customize Output
 
+For synthetic models:
 ```bash
 # Show recommendations for more users
-python -m src.test_model --num-users 10
+python -m src.synthetic.test_model --num-users 10
 
 # Show more recommendations per user
-python -m src.test_model --num-recs 20
+python -m src.synthetic.test_model --num-recs 20
+```
 
-# Full example
-python -m src.test_model \
-    --model models/model_improved.ckpt \
-    --num-users 5 \
-    --num-recs 15
+For Kaggle models:
+```bash
+# Test multiple playlists
+for i in {0..10}; do
+    python scripts/kaggle/test_model.py --playlist $i --top-k 5
+done
 ```
 
 ### Compare Models
@@ -63,21 +101,15 @@ This shows a comparison table with:
 
 ## Understanding the Output
 
-### Test Metrics
+### Synthetic Model Output
 
-For models trained with validation splits:
+For session-based recommendations:
 
 ```text
 Test metrics from training:
   Test Recall@10: 0.3842
   Test NDCG@10: 0.2913
-```
 
-### Sample Recommendations
-
-Shows recommendations for random users:
-
-```text
 User 42 Recommendations:
 Listened to 87 songs
 
@@ -85,13 +117,37 @@ Top 5 Recommendations:
  1. Sunny Day Blues                      (Score: 0.892)
  2. Electric Dreams                      (Score: 0.831)
  3. Midnight Jazz                        (Score: 0.798)
- 4. Summer Vibes                         (Score: 0.765)
- 5. Acoustic Morning                     (Score: 0.724)
 
 Influenced by your listening history:
   - Rainy Night Jazz                    (Attention: 0.342)
   - Blues Collection                    (Attention: 0.281)
-  - Morning Coffee Playlist             (Attention: 0.198)
+```
+
+### Kaggle Model Output
+
+For playlist-based recommendations:
+
+```text
+Playlist 100 Information:
+Features: track_count=0.25, danceability=0.65, energy=0.72
+Number of tracks: 25
+
+Top 10 Recommended Tracks:
+1. Track 4521 (score: 0.921)
+   Features: energy=0.71, valence=0.68, danceability=0.64
+   Artist: 1823
+   Genres: [2, 5]
+
+Explaining why Track 4521 was recommended:
+Recommendation Score: 0.921
+
+Genre Influence:
+  - Genre 2: similarity = 0.812
+  - Genre 5: similarity = 0.754
+
+Artist Influence:
+  - Artist 1823: similarity = 0.689
+    (Playlist already contains 2 tracks by this artist)
 ```
 
 ### Model Comparison
@@ -120,17 +176,16 @@ models/advanced/best_model.pt     0.3842          16            0.2757
 
 ## Advanced Testing
 
-### Test on Specific Users
+### Test on Specific Users/Playlists
 
-Create a custom script:
-
+For synthetic models:
 ```python
-from src.test_model import load_model_and_data
+from src.synthetic.test_model import load_model_and_data
 
 # Load model
 model, graph, checkpoint = load_model_and_data(
-    "models/model_improved.ckpt", 
-    "data/graph.pt"
+    "models/synthetic/model_improved.ckpt", 
+    "data/synthetic/graph.pt"
 )
 
 # Test specific user
@@ -140,12 +195,38 @@ top_songs, scores, attention = model.recommend(
 )
 ```
 
+For Kaggle models:
+```python
+from src.kaggle.models import PlaylistGAT
+import torch
+
+# Load graph and model
+graph = torch.load("data/kaggle/playlist_graph.pt")
+model = PlaylistGAT(
+    num_playlists=graph["playlist"].num_nodes,
+    num_tracks=graph["track"].num_nodes,
+    num_artists=graph["artist"].num_nodes,
+    num_genres=graph["genre"].num_nodes,
+)
+model.load_state_dict(torch.load("models/kaggle/best_model.pt"))
+
+# Test specific playlist
+playlist_id = 123
+tracks, scores = model.get_playlist_recommendations(
+    playlist_id, x_dict, graph, k=20
+)
+```
+
 ### Export Recommendations
 
-Save recommendations to CSV:
+Save recommendations to file:
 
 ```bash
-python -m src.test_model --model models/model_improved.ckpt > recommendations.txt
+# Synthetic recommendations
+python -m src.synthetic.test_model > synthetic_recommendations.txt
+
+# Kaggle recommendations
+python scripts/kaggle/test_model.py --playlist 0 --top-k 50 > playlist_recommendations.txt
 ```
 
 ### Visualize Attention
@@ -169,8 +250,11 @@ This means the model was trained with SimpleTrainer (all data, no splits). Use A
 Make sure you've trained a model first:
 
 ```bash
-make train           # SimpleTrainer
-make train-improved  # AdvancedTrainer
+# For synthetic pipeline
+make synthetic-all
+
+# For Kaggle pipeline
+make kaggle-all
 ```
 
 ## Next Steps

@@ -87,79 +87,94 @@ pip install torch-geometric
 
 ## Running the System
 
-### Step 1: Generate Synthetic Data
+You have two options for running the recommendation system:
 
-Since we're using synthetic data (to avoid licensing issues), first generate the dataset:
+### Option A: Synthetic Data Pipeline (Session-based)
 
-```bash
-python scripts/generate_synthetic_data.py
-```
-
-This creates:
-
-- `data/raw_sessions.csv`: Synthetic listening sessions
-- `data/tracks.csv`: Song metadata
-- 1000 users, 5000 songs, 500 artists
-- ~100K listening sessions
-
-### Step 2: Prepare the Data
-
-Convert raw sessions into aggregated edge data:
+This pipeline generates synthetic listening sessions and predicts next-song recommendations.
 
 ```bash
-python scripts/prepare_mssd.py
+# Run complete pipeline
+make synthetic-all
 ```
 
-This creates:
+This automatically:
+1. Generates synthetic data (1000 users, 5000 songs)
+2. Prepares session-based edges
+3. Builds the graph
+4. Trains the model
+5. Tests recommendations
 
-- `data/edge_list.parquet`: Aggregated user-song interactions
-- Calculates play counts and completion ratios
+### Option B: Kaggle Data Pipeline (Playlist-based)
 
-### Step 3: Build the Graph
-
-Construct the heterogeneous graph structure:
+This pipeline uses real Spotify playlist data for playlist completion recommendations.
 
 ```bash
-python -m src.build_graph
+# First, download Kaggle data (see data/kaggle/README.md for URLs)
+# Place CSV files in data/kaggle/
+
+# Run complete pipeline
+make kaggle-all
 ```
 
-This creates:
+This automatically:
+1. Processes Kaggle playlist data
+2. Builds playlist-track-artist-genre graph
+3. Trains playlist completion model
+4. Tests playlist recommendations
 
-- `data/graph.pt`: PyTorch Geometric HeteroData object
-- Contains user, song, and artist nodes
-- Weighted edges based on listening behavior
+**Training Modes** (edit Makefile to change):
+- Mini mode (~5 min): Quick testing
+- Quick mode (~15 min): Demo quality
+- Balanced mode (~45 min): Better quality
+- Full mode (~3-4 hours): Best quality
 
-### Step 4: Train the Model
+## Manual Steps (for both pipelines)
 
-Train the Graph Attention Network:
+If you prefer to run steps individually:
+
+### Synthetic Pipeline Steps
 
 ```bash
-# Basic training (quick experiments)
-python -m src.train --epochs 20
+# 1. Generate synthetic data
+python scripts/synthetic/generate_data.py
 
-# Advanced training (recommended)
-python -m src.train_improved --epochs 50
+# 2. Prepare edges
+python scripts/synthetic/prepare_edges.py
+
+# 3. Build graph
+python -m src.synthetic.build_graph
+
+# 4. Train model
+python -m src.synthetic.train_improved --epochs 50
+
+# 5. Test model
+python -m src.synthetic.test_model
 ```
 
-The advanced trainer includes validation splits, early stopping, and better metrics. See the [Training Guide](technical/training.md) for details.
+### Kaggle Pipeline Steps
 
-This creates:
+```bash
+# 1. Prepare data
+python scripts/kaggle/prepare_data.py
 
-- `models/`: Trained model checkpoints and metrics
+# 2. Build graph
+python scripts/kaggle/build_graph.py
 
-### Step 5: View Recommendations
+# 3. Train model
+python -m src.kaggle.train --epochs 5 --max-playlists 1000
 
-Launch the interactive demo:
+# 4. Test model
+python scripts/kaggle/test_model.py
+```
+
+### View Interactive Demo
+
+For synthetic data recommendations:
 
 ```bash
 jupyter notebook notebooks/quick_demo.ipynb
 ```
-
-Then:
-
-1. Open the notebook in your browser
-2. Run all cells (Cell → Run All)
-3. See personalized recommendations with explanations!
 
 ## Verifying Your Setup
 
@@ -179,12 +194,15 @@ Should show:
 
 ```python
 import torch
-from src.models.gat_recommender import GATRecommender
 
-# Load checkpoint
-checkpoint = torch.load('models/model.ckpt')
+# For synthetic model
+checkpoint = torch.load('models/synthetic/model_improved.ckpt')
 print(f"Model trained for {len(checkpoint['metrics']['train_loss'])} epochs")
 print(f"Final Recall@10: {checkpoint['metrics']['recall@10'][-1]:.2%}")
+
+# For Kaggle model
+model_state = torch.load('models/kaggle/best_model.pt')
+print(f"Kaggle model loaded successfully")
 ```
 
 ## Common Issues
@@ -210,10 +228,14 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 
 ### Out of Memory During Training
 
-**Solution**: Reduce batch size:
+**Solution**: Reduce batch size or training data:
 
 ```bash
-python -m src.train --batch-size 128
+# Synthetic pipeline
+python -m src.synthetic.train --batch-size 128
+
+# Kaggle pipeline
+python -m src.kaggle.train --batch-size 64 --max-playlists 1000
 ```
 
 ### Jupyter Notebook Not Found
@@ -230,10 +252,15 @@ pip install jupyterlab
 
 Now that you have the system running:
 
-1. **Experiment with Training**: Try both `train` and `train_improved`
-2. **Explore the Code**: Check `src/models/` and `src/trainers/`
-3. **Compare Models**: Run `make compare-models`
-4. **Read the Docs**: See [Training Guide](technical/training.md) for details
+1. **Try Both Pipelines**: Compare session-based vs playlist-based recommendations
+2. **Experiment with Training**: Adjust epochs, batch sizes, and data sizes
+3. **Explore the Models**: 
+   - Synthetic: `src/synthetic/` and `src/common/models/`
+   - Kaggle: `src/kaggle/models.py`
+4. **Read the Docs**: 
+   - [Training Guide](technical/training.md) - Training strategies
+   - [Kaggle Pipeline](kaggle-pipeline.md) - Playlist recommendations
+   - [Architecture](technical/architecture.md) - System design
 
 ## Getting Help
 

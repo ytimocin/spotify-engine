@@ -86,6 +86,7 @@ User genre preferences with affinity scores:
 - `affinity_score`: How much the user likes this genre (0-1)
 
 User preferences vary by type:
+
 - Casual users: 1-3 focused genres
 - Regular users: 2-5 genres with moderate diversity
 - Power users: 3-8 genres, more exploration
@@ -111,6 +112,7 @@ The data generator includes built-in validation to ensure data quality:
 - **Genre coverage**: Ensures all genres are used and artists have appropriate genres
 
 Quality metrics tracked:
+
 - Skip rate (songs played < 30 seconds)
 - Completion rate (songs played ≥ 80% of duration)
 - Average songs per listening session
@@ -119,7 +121,7 @@ Quality metrics tracked:
 ## Data Processing Pipeline
 
 ```text
-synthetic_sessions.csv 
+synthetic_sessions.csv
     ↓ (prepare_mssd.py)
 edge_list.parquet (aggregated user-song interactions)
     ↓ (build_graph.py)

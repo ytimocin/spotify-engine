@@ -5,6 +5,7 @@ This directory should contain the Kaggle Spotify playlist dataset CSV files. The
 ## Required Files
 
 1. **spotify_dataset.csv** (~1.2 GB)
+
    - Contains playlist membership data
    - Columns: `user_id`, `artistname`, `trackname`, `playlistname`
    - ~12.9M rows
@@ -17,11 +18,13 @@ This directory should contain the Kaggle Spotify playlist dataset CSV files. The
 ## Download Instructions
 
 1. Download the datasets from Kaggle (you'll need a Kaggle account):
-   - Playlists: https://www.kaggle.com/api/v1/datasets/download/andrewmvd/spotify-playlists
-   - Track Features: https://www.kaggle.com/api/v1/datasets/download/rodolfofigueroa/spotify-12m-songs
+
+   - Playlists: <https://www.kaggle.com/api/v1/datasets/download/andrewmvd/spotify-playlists>
+   - Track Features: <https://www.kaggle.com/api/v1/datasets/download/rodolfofigueroa/spotify-12m-songs>
 
 2. Place both CSV files in this directory:
-   ```
+
+   ```text
    data/kaggle/
    ├── spotify_dataset.csv
    ├── tracks_features.csv
@@ -51,6 +54,7 @@ wc -l data/kaggle/*.csv
 ## Data Format
 
 ### spotify_dataset.csv
+
 ```csv
 "user_id", "artistname", "trackname", "playlistname"
 "9cc0cfd4d7d7885102480dd99e7a90d6","Elvis Costello","(The Angels Wanna Wear My) Red Shoes","HARD ROCK 2010"
@@ -58,6 +62,7 @@ wc -l data/kaggle/*.csv
 ```
 
 ### tracks_features.csv
+
 ```csv
 id,name,album,album_id,artists,artist_ids,track_number,disc_number,explicit,danceability,energy,key,loudness,mode,speechiness,acousticness,instrumentalness,liveness,valence,tempo,duration_ms,time_signature,year,release_date
 ...

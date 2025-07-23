@@ -2,47 +2,66 @@
 
 ## System Overview
 
-The Spotify Engine is a graph-based recommendation system that transforms music listening sessions into a heterogeneous graph structure, applies Graph Attention Networks for learning, and provides explainable recommendations through attention visualization.
+The Spotify Engine is a dual-pipeline graph-based recommendation system supporting two distinct approaches:
 
-## Data Flow Pipeline
+1. **Synthetic Pipeline**: Session-based recommendations that predict next-song in listening sessions
+2. **Kaggle Pipeline**: Playlist-based recommendations that complete playlists with fitting tracks
+
+Both pipelines use Graph Attention Networks (GAT) for learning and provide explainable recommendations through attention visualization.
+
+## Pipeline Architecture
+
+### Synthetic Pipeline (Session-based)
 
 ```mermaid
 graph TD
-    A[raw_sessions.csv<br/>User listening sessions] -->|prepare_mssd.py| B[edge_list.parquet<br/>Aggregated interactions]
-    C[tracks.csv<br/>Song metadata] -->|build_graph.py| D[graph.pt<br/>Heterogeneous Graph]
+    A[raw_sessions.csv<br/>User listening sessions] -->|prepare_edges.py| B[edge_list.parquet<br/>Aggregated interactions]
+    C[tracks.csv<br/>Song metadata] -->|build_graph.py| D[graph.pt<br/>User-Song-Artist Graph]
     G[genres.csv<br/>Genre metadata] -->|build_graph.py| D
     H[user_genre_preferences.csv<br/>User genre affinities] -->|build_graph.py| D
-    I[artist_genres.csv<br/>Artist-genre mappings] -->|build_graph.py| D
-    J[song_genres.csv<br/>Song-genre mappings] -->|build_graph.py| D
     B -->|build_graph.py| D
-    D -->|Trainers| E[model.ckpt<br/>Trained GAT Model]
-    E -->|quick_demo.ipynb| F[Recommendations<br/>with Explanations]
-    
+    D -->|train_improved.py| E[model.ckpt<br/>Session GAT Model]
+    E -->|test_model.py| F[Next-Song<br/>Recommendations]
+
     style A fill:#e1f5fe
-    style C fill:#e1f5fe
-    style G fill:#e1f5fe
-    style H fill:#e1f5fe
-    style I fill:#e1f5fe
-    style J fill:#e1f5fe
     style B fill:#fff3e0
     style D fill:#f3e5f5
     style E fill:#e8f5e9
     style F fill:#ffebee
 ```
 
+### Kaggle Pipeline (Playlist-based)
+
+```mermaid
+graph TD
+    K[spotify_dataset.csv<br/>Playlist entries] -->|prepare_data.py| L[Processed Data<br/>playlists/tracks/artists]
+    M[track_features.csv<br/>Audio features] -->|prepare_data.py| L
+    L -->|build_graph.py| N[playlist_graph.pt<br/>Playlist-Track-Artist Graph]
+    N -->|train.py| O[best_model.pt<br/>PlaylistGAT Model]
+    O -->|test_model.py| P[Playlist<br/>Completions]
+
+    style K fill:#e1f5fe
+    style M fill:#e1f5fe
+    style L fill:#fff3e0
+    style N fill:#f3e5f5
+    style O fill:#e8f5e9
+    style P fill:#ffebee
+```
+
 ### Detailed Pipeline Steps
 
 1. **Data Generation** (`generate_synthetic_data.py`)
+
    - Creates synthetic listening sessions with realistic patterns
    - Generates 35 music genres with Zipf-distributed popularity
    - Assigns genres to artists (1-3 genres per artist) and songs
    - Creates user genre preferences with affinity scores
-   - Outputs: 
+   - Outputs:
      - `raw_sessions.csv` - Listening sessions
      - `tracks.csv` - Song metadata
      - `genres.csv` - Genre definitions
      - `artist_genres.csv` - Artist-genre mappings
-     - `song_genres.csv` - Song-genre mappings  
+     - `song_genres.csv` - Song-genre mappings
      - `user_genre_preferences.csv` - User genre affinities
    - 1000 users, 5000 songs, 500 artists, 35 genres
    - Raw Format:
@@ -63,6 +82,7 @@ graph TD
    - Creates edge weights
 
 3. **Graph Construction** (`build_graph.py`)
+
    - Builds PyTorch Geometric HeteroData object with 4 node types
    - Creates node mappings and edge indices for all relationships
    - Processes genre nodes and genre-related edges
@@ -71,6 +91,7 @@ graph TD
    - Adds genre metadata to graph attributes
 
 4. **Model Training** (Trainer Architecture)
+
    - **SimpleTrainer**: Basic training on all data
    - **AdvancedTrainer**: With validation, early stopping, LR scheduling
    - Uses BPR loss for implicit feedback learning
@@ -83,64 +104,103 @@ graph TD
 
 ## Graph Structure
 
-### Node Types
+### Synthetic Pipeline Graph
 
 ```text
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
 │   User      │     │   Song      │     │   Artist    │     │   Genre     │
 ├─────────────┤     ├─────────────┤     ├─────────────┤     ├─────────────┤
 │ id: int     │     │ id: int     │     │ id: int     │     │ id: int     │
-│ type: str   │     │ (no feat.)  │     │ name: str   │     │ name: str   │
-└─────────────┘     └─────────────┘     └─────────────┘     │ popularity  │
-       │                    │                    │           └─────────────┘
+│ type: str   │     │ (no feat.)  │     │ (no feat.)  │     │ name: str   │
+└─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
        │                    │                    │                    ▲
        └────listens─────────┘                    │                    │
               edge                               │                    │
-         ├─ play_count                           │                    │
-         ├─ completion_ratio                     │                    │
-         └─ edge_weight                          │                    │
-                                                 │                    │
-       ┌────prefers──────────────────────────────┼────────────────────┘
-       │      edge                               │        edge
-       │ └─ affinity_score                       └───────belongs_to
-       │                                                      │
-       ▼                    ┌────────performs─────────────────┘
-     Genre                  │         edge
-                           ▼
-                           │
-                           └────────────► Song ──────has_genre──────► Genre
-                                                      edge
+         ├─ play_count                           └────────by──────────┘
+         ├─ completion_ratio                              edge
+         └─ edge_weight
+```
+
+### Kaggle Pipeline Graph
+
+```text
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│  Playlist   │     │   Track     │     │   Artist    │     │   Genre     │
+├─────────────┤     ├─────────────┤     ├─────────────┤     ├─────────────┤
+│ features:   │     │ features:   │     │ features:   │     │ one-hot     │
+│ - count     │     │ - energy    │     │ - count     │     │ encoding    │
+│ - audio avg │     │ - valence   │     │   (log)     │     │             │
+└─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
+       │                    │                    │                    ▲
+       └────contains────────┘                    │                    │
+              edge                               │                    │
+                                                 └─────performs_genre─┘
+                                                          edge
 ```
 
 ### Edge Attributes
 
-#### User → Song (listens_to)
+#### Synthetic Pipeline Edges
+
+**User → Song (listens_to)**
 - **play_count**: Number of times user played song
-- **completion_ratio**: Average fraction of song listened
+- **completion_ratio**: Average fraction of song listened  
 - **edge_weight**: 0.7 × completion_ratio + 0.3 × normalized_play_count
 
-#### User → Genre (prefers)
+**User → Genre (prefers)**
 - **affinity_score**: Normalized preference score (0-1) based on user type and listening history
 
-#### Artist → Genre (belongs_to)
+**Artist → Genre (belongs_to)**
 - No attributes (membership relationship)
 
-#### Song → Genre (has_genre)
+**Song → Genre (has_genre)**
 - No attributes (inherited from artist genres)
+
+#### Kaggle Pipeline Edges
+
+**Playlist → Track (contains)**
+- No attributes (membership relationship)
+- Used for training: which tracks belong to which playlists
+
+**Track → Artist (by)**
+- No attributes (authorship relationship)
+
+**Artist → Genre (performs_genre)**
+- No attributes (genre association)
 
 ## Model Architecture
 
-The system includes two model variants:
+### Synthetic Pipeline Models
 
-### 1. Basic GAT Recommender (Collaborative Filtering Only)
+The synthetic pipeline supports two model variants:
+
+#### 1. Basic GAT Recommender (Collaborative Filtering Only)
 
 The basic model focuses on user-song interactions without genre information.
+- Single GAT layer with 4 attention heads
+- 32-dimensional embeddings
+- ~206K parameters
 
-### 2. Enhanced GAT Recommender (Genre-Aware)
+#### 2. Enhanced GAT Recommender (Genre-Aware)
 
 The enhanced model incorporates genre information for improved recommendations and explainability.
+- Multi-layer GAT (64 → 32 dims)
+- Genre-aware scoring with α weighting
+- ~500K+ parameters
 
-### GAT Recommender Components
+### Kaggle Pipeline Model
+
+#### PlaylistGAT (Heterogeneous Graph Model)
+
+Designed specifically for playlist completion tasks:
+- Separate embeddings for playlists, tracks, artists, genres
+- Combines learned embeddings with audio features
+- Heterogeneous GAT layers for different edge types
+- ~16M parameters (due to 200K+ tracks)
+
+### Model Component Details
+
+#### Synthetic GAT Architecture
 
 ```text
 ┌─────────────────────────────────────┐
@@ -170,13 +230,6 @@ The enhanced model incorporates genre information for improved recommendations a
 └──────────────┬──────────────────────┘
                │
 ┌──────────────▼──────────────────────┐
-│    Output Projection                │
-├─────────────────────────────────────┤
-│ Linear(32, 32) + ReLU               │
-│ Skip connection from input          │
-└──────────────┬──────────────────────┘
-               │
-┌──────────────▼──────────────────────┐
 │      Scoring Function               │
 ├─────────────────────────────────────┤
 │ Basic: score(u,s) = u·s             │
@@ -186,6 +239,49 @@ The enhanced model incorporates genre information for improved recommendations a
 │ genre_score = genre_similarity(u,s) │
 │ final = α·collab + (1-α)·genre      │
 │ (α = 0.8 by default)                │
+└─────────────────────────────────────┘
+```
+
+#### Kaggle PlaylistGAT Architecture
+
+```text
+┌─────────────────────────────────────┐
+│         Input Layer                 │
+├─────────────────────────────────────┤
+│ Playlist Embeddings (50K × 32)      │
+│ + Playlist Features (8 audio dims)  │
+│ Track Embeddings (200K × 32)        │
+│ + Track Features (7 audio dims)     │
+│ Artist Embeddings (40K × 32)        │
+│ Genre Embeddings (2K × 32)          │
+└──────────────┬──────────────────────┘
+               │
+┌──────────────▼──────────────────────┐
+│    Feature Combination              │
+├─────────────────────────────────────┤
+│ Playlist: [embed; audio_features]   │
+│ Track: [embed; audio_features]      │
+│ Artist: embed + log(track_count)    │
+│ Genre: one-hot encoding             │
+└──────────────┬──────────────────────┘
+               │
+┌──────────────▼──────────────────────┐
+│   Heterogeneous GAT Layers          │
+├─────────────────────────────────────┤
+│ Layer 1: HeteroConv(128 dims)       │
+│ - playlist→track attention          │
+│ - track→artist attention            │
+│ - artist→genre attention            │
+│ Layer 2: HeteroConv(64 dims)        │
+│ Layer 3: HeteroConv(32 dims)        │
+│ Dropout (0.2) + LayerNorm           │
+└──────────────┬──────────────────────┘
+               │
+┌──────────────▼──────────────────────┐
+│      Scoring Function               │
+├─────────────────────────────────────┤
+│ score(playlist, track) = p·t        │
+│ Used with BPR loss for training     │
 └─────────────────────────────────────┘
 ```
 
@@ -201,7 +297,7 @@ The model includes a `recommend()` method that:
 ```python
 def recommend(self, user_idx, x_dict, graph, k=10):
     """Generate recommendations for a specific user.
-    
+
     Returns:
         top_k_songs: Tensor of song indices
         scores: Tensor of recommendation scores
@@ -211,23 +307,38 @@ def recommend(self, user_idx, x_dict, graph, k=10):
 
 ### Model Statistics
 
-#### Basic Model
+#### Synthetic Pipeline Models
+
+**Basic Model**
 - **Total Parameters**: 206,688
 - **Embedding Parameters**: 205,600 (99.5%)
 - **GAT Parameters**: ~1,088
 - **Model Size**: < 1MB
+- **Training Time**: ~2 minutes
 
-#### Enhanced Model  
+**Enhanced Model**
 - **Total Parameters**: ~500K+
 - **Additional Genre Embeddings**: 1,120 (35 × 32)
 - **Multi-layer GAT Parameters**: ~10K
 - **Model Size**: < 2MB
+- **Training Time**: ~5-10 minutes
+
+#### Kaggle Pipeline Model
+
+**PlaylistGAT**
+- **Total Parameters**: ~16M
+- **Embedding Parameters**: ~15M (due to scale)
+- **GAT Parameters**: ~1M
+- **Model Size**: ~65MB
+- **Training Time**: 
+  - Mini mode (500 playlists): ~5 minutes
+  - Full mode (50K playlists): ~3-4 hours
 
 ## Training Architecture
 
-Both trainer classes support training either the basic or enhanced model through configuration.
+### Synthetic Pipeline Training
 
-### Trainer Classes
+Uses modular trainer architecture:
 
 ```text
 BaseTrainer (Abstract)
@@ -239,15 +350,35 @@ BaseTrainer (Abstract)
 - **SimpleTrainer**: Trains on all data, fixed LR, basic metrics
 - **AdvancedTrainer**: Train/val/test splits, early stopping, LR scheduling, comprehensive metrics
 
-### Training Strategies
+### Kaggle Pipeline Training
 
-| Feature | SimpleTrainer | AdvancedTrainer |
-|---------|--------------|------------------|
-| Data Splits | None | 70/15/15 |
-| Early Stopping | No | Yes |
-| LR Scheduling | No | ReduceLROnPlateau |
-| Checkpointing | Final only | Best + regular |
-| Metrics | Loss, Recall@10 | + NDCG@10, validation |
+Uses custom training loop for playlist completion:
+
+- **Hold-out Strategy**: Remove last N tracks from each playlist
+- **Batch Training**: Process playlists in batches to manage memory
+- **Early Stopping**: Monitor validation recall for convergence
+- **Configurable Scale**: Limit playlists for faster experimentation
+
+### Training Strategy Comparison
+
+#### Synthetic Pipeline
+
+| Feature        | SimpleTrainer   | AdvancedTrainer       |
+| -------------- | --------------- | --------------------- |
+| Data Splits    | None            | 70/15/15              |
+| Early Stopping | No              | Yes                   |
+| LR Scheduling  | No              | ReduceLROnPlateau     |
+| Checkpointing  | Final only      | Best + regular        |
+| Metrics        | Loss, Recall@10 | + NDCG@10, validation |
+
+#### Kaggle Pipeline
+
+| Mode     | Playlists | Epochs | Time    | Quality  |
+| -------- | --------- | ------ | ------- | -------- |
+| Mini     | 500       | 3      | ~5 min  | Testing  |
+| Quick    | 1,000     | 5      | ~15 min | Demo     |
+| Balanced | 5,000     | 8      | ~45 min | Good     |
+| Full     | 50,000    | 20     | ~3-4 hr | Best     |
 
 ## Training Process
 
@@ -275,24 +406,35 @@ loss = -log(sigmoid(score(u, pos_item) - score(u, neg_item)))
 
 ## Evaluation Metrics
 
-### Primary Metrics
+### Synthetic Pipeline Metrics
 
-- **Recall@10**: Percentage of user's test items found in top-10 recommendations
+**Primary Metrics**
+- **Recall@10**: Percentage of user's test songs found in top-10 recommendations
 - **NDCG@10**: Normalized Discounted Cumulative Gain for ranking quality
 - **Loss**: BPR loss on validation set
 
-### Genre-Aware Metrics (Enhanced Model)
-
+**Genre-Aware Metrics (Enhanced Model)**
 - **Genre Diversity**: Variety of genres in recommendations
 - **Genre Coverage**: Percentage of genres represented in recommendations
 - **Genre Influence Score**: Quantifies impact of genre preferences on recommendations
 
-### Extended Metrics
-
-- **Coverage**: Percentage of items that can be recommended
-- **Diversity**: Uniqueness of recommendations across users  
-- **Novelty**: Ability to recommend less popular items
+**Extended Metrics**
+- **Coverage**: Percentage of songs that can be recommended
+- **Diversity**: Uniqueness of recommendations across users
+- **Novelty**: Ability to recommend less popular songs
 - **User Type Performance**: Metrics broken down by casual/regular/power users
+
+### Kaggle Pipeline Metrics
+
+**Primary Metrics**
+- **Recall@K**: Percentage of held-out tracks found in top-K recommendations
+- **Precision@K**: Percentage of recommendations that are relevant
+- **Loss**: BPR loss on training pairs
+
+**Playlist-Specific Metrics**
+- **Playlist Completion Rate**: How well model predicts missing tracks
+- **Genre Consistency**: Whether recommendations match playlist genres
+- **Artist Diversity**: Variety of artists in recommendations
 
 ## Explainability Mechanism
 
@@ -334,11 +476,11 @@ Recommending "Song X" because:
 1. Similar Listening Patterns (75% influence):
    - Users who liked "Song A" also enjoyed this (attention: 0.45)
    - Similar to "Song B" in your history (attention: 0.31)
-   
+
 2. Genre Match (25% influence):
    - Matches your preference for Rock (affinity: 0.85)
    - Artist shares Alternative genre with your favorites
-   
+
 3. Popularity Context:
    - Moderately popular in your preferred genres
    - Discovered by users with similar tastes
@@ -377,12 +519,21 @@ Recommending "Song X" because:
 
 ### ✅ Completed Features
 
+**Synthetic Pipeline**
 - **Genre System**: Full implementation with 35 genres
 - **Enhanced GAT Model**: Multi-layer architecture with genre awareness
 - **Comprehensive Explainability**: Attention + genre-based explanations
 - **Extended Metrics**: Genre diversity, coverage, and influence analysis
 - **Realistic Data Generation**: Beta distributions, user behavioral patterns
 - **Data Validation**: Quality checks for behavioral patterns and distributions
+- **Performance Optimization**: Vectorized operations for 3-5x speedup
+
+**Kaggle Pipeline**
+- **Playlist-based Model**: PlaylistGAT for playlist completion
+- **Heterogeneous Graph**: Support for playlists, tracks, artists, genres
+- **Audio Feature Integration**: Combines embeddings with audio features
+- **Scalable Training**: Configurable modes from mini to full scale
+- **Playlist Explanations**: Genre and artist influence analysis
 
 ### 🎯 Next Phase Features
 
@@ -390,6 +541,8 @@ Recommending "Song X" because:
 - **Hyperparameter Optimization**: Automated tuning with Optuna
 - **Context Features**: Time-of-day, activity-based recommendations
 - **API Development**: REST endpoints for serving recommendations
+- **Real-time Updates**: Incremental learning for new users/items
+- **Cross-Pipeline Integration**: Unified recommendation API
 
 ## Future Architecture Considerations
 

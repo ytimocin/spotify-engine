@@ -99,10 +99,12 @@ graph.pt (with genres)
 ```
 
 Both trainers support:
+
 - **Basic GAT Model**: Single-layer collaborative filtering
 - **Enhanced GAT Model**: Multi-layer with genre awareness and explainability
 
 Training strategies:
+
 - **SimpleTrainer**: Fast training on all data, good for experiments
 - **AdvancedTrainer**: Production-ready with validation, early stopping, and LR scheduling
 
@@ -135,11 +137,13 @@ make validate        # Run comprehensive data validation
 ### Performance (Synthetic Data)
 
 **Basic GAT Model** (collaborative filtering only):
+
 - **Validation Recall@10**: ~42%
 - **Test Recall@10**: ~38%
 - **Parameters**: 206,688 (< 1MB model)
 
 **Enhanced GAT Model** (with genres and explainability):
+
 - **Genre-aware recommendations**: ✅ Supported
 - **Explainable predictions**: ✅ Attention weights + genre influence
 - **Parameters**: ~500K+ (depending on genre count)
@@ -159,6 +163,7 @@ python scripts/test_enhanced_model.py --user 0 --top-k 5 --verbose
 ```
 
 The evaluation includes:
+
 - **Standard metrics**: Recall@10, NDCG@10, validation performance
 - **Genre-aware metrics**: Genre diversity, coverage, influence analysis
 - **Explainability**: Attention weights, genre influence scores, recommendation reasoning
@@ -232,7 +237,7 @@ make quality
 1. **✅ Genre Features** - Completed: Full genre-aware recommendations with explainability
 2. **✅ Kaggle Pipeline** - Completed: Playlist-based recommendations with GAT
 3. **Model Versioning & Experiment Tracking** - Systematic experiment management and comparison
-4. **Context-Aware Features** - Time-of-day, situational, and temporal recommendations  
+4. **Context-Aware Features** - Time-of-day, situational, and temporal recommendations
 5. **API Endpoint Development** - REST/GraphQL for serving recommendations
 6. **Advanced Training Features** - Hyperparameter optimization, multi-objective training
 7. **Real Music Data Integration** - Scale to full datasets

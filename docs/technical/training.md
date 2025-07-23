@@ -2,48 +2,61 @@
 
 ## Overview
 
-The Spotify Engine uses two training strategies through modular trainer classes:
+The Spotify Engine supports two distinct pipelines with different training approaches:
 
+### Synthetic Pipeline (Session-based)
+Uses modular trainer classes:
 - **SimpleTrainer**: Quick experiments with all data
 - **AdvancedTrainer**: Production-ready with validation and sophisticated features
 
-Both trainers support two model architectures:
-
+Supports two model architectures:
 - **Basic GAT Model**: Collaborative filtering only (~206K parameters)
 - **Enhanced GAT Model**: Genre-aware with explainability (~500K+ parameters)
+
+### Kaggle Pipeline (Playlist-based)
+Uses a custom training loop for playlist completion:
+- **PlaylistGAT Model**: Heterogeneous graph with playlists, tracks, artists, genres (~16M parameters)
+- **Playlist Completion Objective**: Hold-out last N tracks from each playlist
+- **Multiple Training Modes**: Mini (5min), Quick (15min), Balanced (45min), Full (3-4hrs)
 
 ## Training Theory
 
 ### BPR (Bayesian Personalized Ranking) Loss
 
-We use implicit feedback learning:
+Both pipelines use implicit feedback learning with different contexts:
 
+**Synthetic (Session-based)**:
 - **Positive samples**: Songs the user listened to
 - **Negative samples**: Random songs they haven't heard
 - **Objective**: `score(user, listened_song) > score(user, random_song)`
+
+**Kaggle (Playlist-based)**:
+- **Positive samples**: Tracks in the playlist
+- **Negative samples**: Random tracks not in playlist
+- **Objective**: `score(playlist, playlist_track) > score(playlist, random_track)`
 
 ```python
 loss = -log(sigmoid(pos_score - neg_score))
 ```
 
-## Basic Training (SimpleTrainer)
+## Synthetic Pipeline Training
 
-### Quick Start
+### Basic Training (SimpleTrainer)
+
+#### Quick Start
 
 ```bash
-make train
-# or
-python -m src.train --epochs 20
+python -m src.synthetic.train --epochs 20
 ```
 
-### Features
+#### Features
 
 - Trains on all data (no validation split)
 - Fixed learning rate
 - Basic metrics (Loss, Recall@10)
 - Fast iteration (~2 minutes)
 
-### Options
+#### Options
 
 | Parameter         | Default | Description         |
 | ----------------- | ------- | ------------------- |
@@ -54,21 +67,12 @@ python -m src.train --epochs 20
 | `--heads`         | 4       | GAT attention heads |
 | `--use-enhanced`  | flag    | Use enhanced GAT model |
 
-### When to Use
+### Advanced Training (AdvancedTrainer)
 
-- Quick experiments
-- Hyperparameter exploration
-- Baseline models
-- Limited data scenarios
-
-## Advanced Training (AdvancedTrainer)
-
-### Quick Start
+#### Quick Start
 
 ```bash
-make train-improved
-# or
-python -m src.train_improved --epochs 50 --patience 5
+python -m src.synthetic.train_improved --epochs 50 --patience 5
 ```
 
 ### Features
@@ -228,3 +232,56 @@ python -m src.train_improved --epochs 50 --use-enhanced --genre-weight 0.2
 
 - Metrics improve very slowly
 - **Solution**: Increase learning rate, check data quality
+
+## Kaggle Pipeline Training
+
+### Overview
+
+The Kaggle pipeline uses a custom training loop designed for playlist completion tasks:
+
+```bash
+python -m src.kaggle.train --epochs 10 --max-playlists 1000 --batch-size 128
+```
+
+### Training Modes
+
+Configure training speed vs quality in the Makefile:
+
+| Mode | Playlists | Epochs | Batch Size | Time | Use Case |
+|------|-----------|---------|------------|------|----------|
+| Mini | 500 | 3 | 256 | ~5 min | Quick testing |
+| Quick | 1,000 | 5 | 128 | ~15 min | Demo quality |
+| Balanced | 5,000 | 8 | 96 | ~45 min | Better results |
+| Full | 50,000 | 20 | 64 | ~3-4 hrs | Best quality |
+
+### Key Differences from Synthetic
+
+1. **Data Splits**: Hold out last N tracks per playlist (not random)
+2. **Objective**: Playlist completion (not next-song prediction)
+3. **Evaluation**: Can the model predict held-out tracks?
+4. **Scale**: Much larger graphs (200K+ tracks vs 5K songs)
+
+### Options
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--epochs` | 30 | Training iterations |
+| `--lr` | 0.01 | Learning rate |
+| `--batch-size` | 32 | Playlists per batch |
+| `--max-playlists` | None | Limit training data |
+| `--holdout-size` | 5 | Tracks to hold out |
+| `--patience` | 5 | Early stopping patience |
+
+### Training Process
+
+1. **Split Data**: Hold out last 5 tracks from each playlist for testing
+2. **Create Training Graph**: Remove held-out edges
+3. **Train Model**: Learn playlist-track associations
+4. **Evaluate**: Can model predict the held-out tracks?
+
+### Performance Tips
+
+1. **Start Small**: Use `--max-playlists 1000` for initial tests
+2. **Monitor Loss**: Should decrease steadily
+3. **Check Recall**: Even 0.1-0.2 is decent for playlist completion
+4. **Batch Size**: Larger = faster but may hurt convergence
