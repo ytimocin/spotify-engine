@@ -193,14 +193,25 @@ def main():
     """Build graph from edge data and save to disk."""
     parser = argparse.ArgumentParser(description="Build graph from edge data")
     parser.add_argument(
-        "--edges", type=str, default="data/synthetic/aggregated_edge_list.parquet", help="Input edge list Parquet file"
+        "--edges",
+        type=str,
+        default="data/synthetic/aggregated_edge_list.parquet",
+        help="Input edge list Parquet file",
     )
     parser.add_argument(
-        "--songs", type=str, default="data/synthetic/synthetic_songs.csv", help="Songs metadata CSV file"
+        "--songs",
+        type=str,
+        default="data/synthetic/synthetic_songs.csv",
+        help="Songs metadata CSV file",
     )
-    parser.add_argument("--output", type=str, default="data/synthetic/graph.pt", help="Output graph file")
     parser.add_argument(
-        "--data-dir", type=str, default="data/synthetic", help="Directory containing genre data files"
+        "--output", type=str, default="data/synthetic/graph.pt", help="Output graph file"
+    )
+    parser.add_argument(
+        "--data-dir",
+        type=str,
+        default="data/synthetic",
+        help="Directory containing genre data files",
     )
     parser.add_argument(
         "--include-genres", action="store_true", default=True, help="Include genre nodes and edges"

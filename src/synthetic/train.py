@@ -21,7 +21,9 @@ def main():
     parser = argparse.ArgumentParser(description="Train GAT recommender with SimpleTrainer")
 
     # Data arguments
-    parser.add_argument("--graph", type=str, default="data/synthetic/graph.pt", help="Input graph file")
+    parser.add_argument(
+        "--graph", type=str, default="data/synthetic/graph.pt", help="Input graph file"
+    )
 
     # Training arguments
     parser.add_argument("--epochs", type=int, default=10, help="Number of epochs")
@@ -37,7 +39,9 @@ def main():
     parser.add_argument("--heads", type=int, default=4, help="Number of attention heads")
 
     # Output arguments
-    parser.add_argument("--output-dir", type=str, default="models/synthetic/simple", help="Output directory")
+    parser.add_argument(
+        "--output-dir", type=str, default="models/synthetic/simple", help="Output directory"
+    )
 
     args = parser.parse_args()
 

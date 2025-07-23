@@ -16,12 +16,14 @@ import numpy as np
 import pandas as pd
 import torch
 
-from src.common.models.gat_recommender import GATRecommender
 from src.common.models.enhanced_gat_recommender import EnhancedGATRecommender
+from src.common.models.gat_recommender import GATRecommender
 from src.common.utils import create_node_indices
 
 
-def load_model_and_data(checkpoint_path: str, graph_path: str) -> Tuple[torch.nn.Module, dict, dict]:
+def load_model_and_data(
+    checkpoint_path: str, graph_path: str
+) -> Tuple[torch.nn.Module, dict, dict]:
     """Load model from checkpoint and graph data."""
     # Load graph
     print(f"Loading graph from: {graph_path}")
@@ -34,19 +36,23 @@ def load_model_and_data(checkpoint_path: str, graph_path: str) -> Tuple[torch.nn
     # Get model config and class from checkpoint
     model_config = checkpoint.get("model_config", {})
     model_class_name = checkpoint.get("model_class")
-    
+
     if not model_class_name:
-        raise ValueError("Checkpoint missing 'model_class'. Please retrain the model with the updated trainer.")
-    
+        raise ValueError(
+            "Checkpoint missing 'model_class'. Please retrain the model with the updated trainer."
+        )
+
     # Create the exact model class that was used during training
     print(f"Loading model class from checkpoint: {model_class_name}")
-    
+
     if model_class_name == "EnhancedGATRecommender":
         model = EnhancedGATRecommender(
             num_users=model_config.get("num_users", graph["user"].num_nodes),
             num_songs=model_config.get("num_songs", graph["song"].num_nodes),
             num_artists=model_config.get("num_artists", graph["artist"].num_nodes),
-            num_genres=model_config.get("num_genres", graph["genre"].num_nodes if "genre" in graph.node_types else 35),
+            num_genres=model_config.get(
+                "num_genres", graph["genre"].num_nodes if "genre" in graph.node_types else 35
+            ),
             embedding_dim=model_config.get("embedding_dim", 32),
             heads=model_config.get("heads", 4),
         )
@@ -238,9 +244,14 @@ def main():
     parser = argparse.ArgumentParser(description="Test trained GAT recommender models")
 
     parser.add_argument(
-        "--model", type=str, default="models/synthetic/advanced/best_model.pt", help="Path to model checkpoint"
+        "--model",
+        type=str,
+        default="models/synthetic/advanced/best_model.pt",
+        help="Path to model checkpoint",
     )
-    parser.add_argument("--graph", type=str, default="data/synthetic/graph.pt", help="Path to graph file")
+    parser.add_argument(
+        "--graph", type=str, default="data/synthetic/graph.pt", help="Path to graph file"
+    )
     parser.add_argument(
         "--num-users",
         type=int,

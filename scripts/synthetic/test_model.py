@@ -13,10 +13,11 @@ import torch
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from src.common.explainability import RecommendationExplainer, format_explanation
-from src.common.metrics_extended import evaluate_genre_aware_recommendations
-from src.common.models.enhanced_gat_recommender import EnhancedGATRecommender
-from src.common.visualization.attention_viz import analyze_genre_attention
+# Module imports after path setup
+from src.common.explainability import RecommendationExplainer, format_explanation  # noqa: E402
+from src.common.metrics_extended import evaluate_genre_aware_recommendations  # noqa: E402
+from src.common.models.enhanced_gat_recommender import EnhancedGATRecommender  # noqa: E402
+from src.common.visualization.attention_viz import analyze_genre_attention  # noqa: E402
 
 
 def main():  # noqa: C901

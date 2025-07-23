@@ -32,3 +32,7 @@ per-file-ignores =
     scripts/generate_synthetic_data.py:C901
     scripts/validate_data.py:C901
     src/test_model.py:C901
+    scripts/common/validate_data.py:C901
+    scripts/kaggle/prepare_data.py:C901
+    scripts/synthetic/generate_data.py:C901
+    src/synthetic/test_model.py:C901

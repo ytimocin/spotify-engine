@@ -24,7 +24,9 @@ def main():
     parser = argparse.ArgumentParser(description="Train GAT recommender with AdvancedTrainer")
 
     # Data arguments
-    parser.add_argument("--graph", type=str, default="data/synthetic/graph.pt", help="Input graph file")
+    parser.add_argument(
+        "--graph", type=str, default="data/synthetic/graph.pt", help="Input graph file"
+    )
     parser.add_argument("--val-ratio", type=float, default=0.15, help="Validation split ratio")
     parser.add_argument("--test-ratio", type=float, default=0.15, help="Test split ratio")
 
