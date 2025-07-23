@@ -190,11 +190,11 @@ def evaluate_playlist_completion(
                 dcg = 0.0
                 for i, track_idx in enumerate(rec_tracks[:k].tolist()):
                     if track_idx in held_out_set:
-                        dcg += 1.0 / torch.log2(torch.tensor(i + 2.0))
+                        dcg += 1.0 / torch.log2(torch.tensor(i + 2.0)).item()
 
                 # Ideal DCG (all held-out tracks at top positions)
                 idcg = sum(
-                    1.0 / torch.log2(torch.tensor(i + 2.0))
+                    1.0 / torch.log2(torch.tensor(i + 2.0)).item()
                     for i in range(min(k, len(held_out_set)))
                 )
 
@@ -205,7 +205,9 @@ def evaluate_playlist_completion(
     avg_metrics = {}
     for metric_name, values in metrics.items():
         if values:
-            avg_metrics[metric_name] = sum(values) / len(values)
+            avg_value = sum(values) / len(values)
+            # Ensure it's a Python float, not a tensor
+            avg_metrics[metric_name] = float(avg_value)
         else:
             avg_metrics[metric_name] = 0.0
 
@@ -349,12 +351,12 @@ def train_playlist_gat(
                 num_batches += 1
 
         avg_loss = total_loss / num_batches if num_batches > 0 else 0
-        history["train_loss"].append(avg_loss)
+        history["train_loss"].append(float(avg_loss))
 
         # Validation
         val_metrics = evaluate_playlist_completion(model, graph, train_graph, val_tracks)
         val_recall = val_metrics["recall@10"]
-        history["val_recall@10"].append(val_recall)
+        history["val_recall@10"].append(float(val_recall))
 
         # Learning rate scheduling
         scheduler.step(val_recall)
@@ -388,7 +390,7 @@ def train_playlist_gat(
 
     return {
         "best_epoch": best_epoch,
-        "best_val_recall": best_val_recall,
+        "best_val_recall": float(best_val_recall),
         "history": history,
         "model": model,
     }

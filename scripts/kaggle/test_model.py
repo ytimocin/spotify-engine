@@ -10,11 +10,15 @@ This script loads a trained PlaylistGAT model and demonstrates:
 import argparse
 import json
 import logging
+import sys
 from pathlib import Path
 
-import torch
+# Add parent directory to path
+sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from src.kaggle.models import PlaylistGAT
+import torch  # noqa: E402
+
+from src.kaggle.models import PlaylistGAT  # noqa: E402
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
