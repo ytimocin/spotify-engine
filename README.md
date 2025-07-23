@@ -2,12 +2,15 @@
 
 Graph-based music recommendations with explainable AI using Graph Attention Networks.
 
-**Version**: 0.0 (Proof of Concept)  
-**Status**: ✅ Working implementation with synthetic data
+**Version**: 0.1 (Proof of Concept)  
+**Status**: ✅ Working implementation with both synthetic and Kaggle data pipelines
 
 ## What It Does
 
-Recommends music by learning from listening patterns and explains WHY each song was suggested using attention weights from Graph Attention Networks. Features genre-aware recommendations with comprehensive explainability and realistic synthetic data generation.
+Recommends music by learning from listening patterns and explains WHY each song was suggested using attention weights from Graph Attention Networks. Supports two recommendation paradigms:
+
+1. **Session-based** (Synthetic data): Predicts next song in listening sessions
+2. **Playlist-based** (Kaggle data): Completes playlists by recommending tracks that fit
 
 ## Prerequisites
 
@@ -17,32 +20,41 @@ Recommends music by learning from listening patterns and explains WHY each song 
 
 ## Quick Start
 
+### Option 1: Synthetic Data Pipeline (Session-based)
+
 ```bash
 # 1. Setup environment
 python3.12 -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-# 2. Install PyTorch (REQUIRED FIRST)
+# 2. Install dependencies
+pip install -r requirements.txt
+
+# 3. Run synthetic pipeline
+make synthetic-all
+```
+
+### Option 2: Kaggle Data Pipeline (Playlist-based)
+
+```bash
+# 1. Download Kaggle data (see data/kaggle/README.md)
+# 2. Run Kaggle pipeline
+make kaggle-all
+```
+
+### Detailed Steps
+
+```bash
+# Install PyTorch (REQUIRED FIRST)
 # macOS/Linux:
 pip install torch torchvision torchaudio
 
 # Windows:
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 
-# 3. Install other dependencies
+# Install other dependencies
 pip install -r requirements.txt
 pip install torch-geometric
-
-# 4. Generate synthetic data
-python scripts/generate_synthetic_data.py
-
-# 5. Build graph and train model
-python scripts/prepare_mssd.py
-python -m src.build_graph
-python -m src.train_improved  # Recommended: includes validation & early stopping
-
-# 6. View recommendations
-jupyter notebook notebooks/quick_demo.ipynb
 ```
 
 ## How It Works
@@ -208,6 +220,7 @@ make quality
 ## Documentation
 
 - [Getting Started Guide](docs/getting-started.md)
+- [Kaggle Pipeline Guide](docs/kaggle-pipeline.md)
 - [Technical Architecture](docs/technical/architecture.md)
 - [Training Guide](docs/technical/training.md)
 - [Trainer Architecture](docs/technical/trainers.md)
@@ -217,10 +230,11 @@ make quality
 ## Next Steps
 
 1. **✅ Genre Features** - Completed: Full genre-aware recommendations with explainability
-2. **Model Versioning & Experiment Tracking** - Systematic experiment management and comparison
-3. **Context-Aware Features** - Time-of-day, situational, and temporal recommendations  
-4. **API Endpoint Development** - REST/GraphQL for serving recommendations
-5. **Advanced Training Features** - Hyperparameter optimization, multi-objective training
-6. **Real Music Data Integration** - Replace synthetic data with actual datasets
+2. **✅ Kaggle Pipeline** - Completed: Playlist-based recommendations with GAT
+3. **Model Versioning & Experiment Tracking** - Systematic experiment management and comparison
+4. **Context-Aware Features** - Time-of-day, situational, and temporal recommendations  
+5. **API Endpoint Development** - REST/GraphQL for serving recommendations
+6. **Advanced Training Features** - Hyperparameter optimization, multi-objective training
+7. **Real Music Data Integration** - Scale to full datasets
 
 See [Future Enhancements](docs/future/) for the complete roadmap and implementation phases.
