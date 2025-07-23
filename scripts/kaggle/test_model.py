@@ -13,12 +13,12 @@ import logging
 import sys
 from pathlib import Path
 
+import torch
+
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-import torch  # noqa: E402
-
-from src.kaggle.models import PlaylistGAT  # noqa: E402
+from src.kaggle.models import PlaylistGAT
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
