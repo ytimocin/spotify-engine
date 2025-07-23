@@ -65,8 +65,6 @@ data/kaggle/*.csv
 data/kaggle/*.parquet
 data/kaggle/*.pt
 data/kaggle/*.json
-!data/kaggle/spotify_dataset.csv
-!data/kaggle/tracks_features.csv
 !data/**/README.md
 !data/**/.gitkeep
 
