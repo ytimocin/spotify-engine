@@ -58,7 +58,7 @@ def benchmark_training(graph, max_playlists=500, epochs=3, batch_size=256):
 
         print(f"✓ Completed in {original_time:.1f}s")
         print(f"  Best validation recall: {original_recall:.4f}")
-        print(f"  Avg time per epoch: {original_time/epochs:.1f}s")
+        print(f"  Avg time per epoch: {original_time / epochs:.1f}s")
     except Exception as e:
         print(f"✗ Failed: {e}")
         original_time = float("inf")
@@ -100,7 +100,7 @@ def benchmark_training(graph, max_playlists=500, epochs=3, batch_size=256):
         speedup = original_time / fast_time
         print(f"Speedup: {speedup:.1f}x faster")
         print(f"Time saved: {original_time - fast_time:.1f}s")
-        print(f"Per-epoch speedup: {(original_time/epochs) / fast_avg_epoch:.1f}x")
+        print(f"Per-epoch speedup: {(original_time / epochs) / fast_avg_epoch:.1f}x")
 
         # Compare quality
         print("\nModel quality comparison:")
@@ -113,7 +113,7 @@ def benchmark_training(graph, max_playlists=500, epochs=3, batch_size=256):
         for scale in [1000, 5000, 10000, 50000]:
             orig_projected = (original_time / max_playlists) * scale
             fast_projected = (fast_time / max_playlists) * scale
-            print(f"  {scale:,} playlists: {orig_projected/60:.1f}min → {fast_projected/60:.1f}min")
+            print(f"  {scale:,} playlists: {orig_projected / 60:.1f}min → {fast_projected / 60:.1f}min")
     else:
         print("Benchmark failed - cannot compute speedup")
 
