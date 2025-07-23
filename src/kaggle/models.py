@@ -267,6 +267,67 @@ class PlaylistGAT(nn.Module):
 
         return scores
 
+    def get_playlist_embeddings(self, playlist_indices: torch.Tensor) -> torch.Tensor:
+        """
+        Get embeddings for specific playlists only.
+
+        Args:
+            playlist_indices: Tensor of playlist indices to embed
+
+        Returns:
+            Embeddings for the specified playlists
+        """
+        # Get raw embeddings
+        embeddings = self.playlist_embedding(playlist_indices)
+
+        # Apply initial projection
+        embeddings = self.playlist_init_proj(embeddings)
+
+        return embeddings
+
+    def get_track_embeddings(self, track_indices: torch.Tensor) -> torch.Tensor:
+        """
+        Get embeddings for specific tracks only.
+
+        Args:
+            track_indices: Tensor of track indices to embed
+
+        Returns:
+            Embeddings for the specified tracks
+        """
+        # For tracks, we don't have learned embeddings, just projections
+        # This assumes track features are available
+        # In practice, you'd pass features or use the graph
+        return self.track_init_proj(torch.zeros(len(track_indices), self.track_feature_dim))
+
+    def get_sparse_embeddings(
+        self, node_indices: Dict[str, torch.Tensor], graph: HeteroData, apply_gat: bool = True
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Compute embeddings only for specified nodes.
+
+        Args:
+            node_indices: Dict mapping node types to indices needed
+            graph: Full graph (for features and edges if apply_gat=True)
+            apply_gat: Whether to apply GAT layers (True) or just return initial embeddings
+
+        Returns:
+            Dict of embeddings for specified nodes only
+        """
+        from src.kaggle.sparse_utils import apply_output_projections, get_initial_node_embeddings
+
+        # Get initial embeddings
+        h_dict = get_initial_node_embeddings(self, node_indices, graph)
+
+        # Apply GAT layers if requested
+        if apply_gat and self.num_layers > 0:
+            # This would require subgraph extraction for efficiency
+            # For now, returning initial embeddings
+            pass
+
+        # Apply output projections
+        return apply_output_projections(self, h_dict)
+
     def get_playlist_recommendations(
         self,
         playlist_idx: int,

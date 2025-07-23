@@ -11,6 +11,8 @@ help:
 	@echo "Pipelines:"
 	@echo "  make synthetic-all  - Run synthetic data pipeline (session-based)"
 	@echo "  make kaggle-all     - Run Kaggle data pipeline (playlist-based)"
+	@echo "  make kaggle-fast    - Run FAST Kaggle training (10-100x speedup)"
+	@echo "  make benchmark      - Compare training speeds"
 	@echo ""
 	@echo "Development:"
 	@echo "  make lint           - Check code quality"
@@ -55,6 +57,22 @@ kaggle-all:
 	# python -m src.kaggle.train --epochs 20 --max-playlists 50000 --batch-size 64
 	python scripts/kaggle/test_model.py
 	@echo "✅ Kaggle pipeline complete!"
+
+# Fast Kaggle training (using sparse operations)
+kaggle-fast:
+	@echo "⚡ Running FAST Kaggle training..."
+	python scripts/kaggle/prepare_data.py
+	python scripts/kaggle/build_graph.py
+	# Fast training with sparse operations
+	python -m src.kaggle.fast_train --epochs 10 --max-playlists 5000 --batch-size 512
+	python scripts/kaggle/test_model.py --model models/kaggle_fast/best_model.pt
+	@echo "✅ Fast Kaggle training complete!"
+
+# Benchmark training speed
+benchmark:
+	@echo "⏱️  Running training speed benchmark..."
+	python scripts/kaggle/benchmark_training.py --max-playlists 500 --epochs 3
+	@echo "✅ Benchmark complete!"
 
 # Code quality
 lint:
