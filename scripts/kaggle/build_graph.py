@@ -125,30 +125,39 @@ def create_node_features(data, mappings):
     playlist_tracks_df = data['playlist_tracks']
     tracks_df = data['tracks']
     
-    # Calculate average audio features per playlist
-    playlist_features = []
+    # Calculate average audio features per playlist using vectorized operations
+    logger.info("Computing playlist features using vectorized operations...")
     
-    for pid in tqdm(playlists_df['playlist_id'], desc="Computing playlist features"):
-        # Get tracks in this playlist
-        track_ids = playlist_tracks_df[playlist_tracks_df['playlist_id'] == pid]['track_id'].values
-        playlist_tracks = tracks_df[tracks_df['track_id'].isin(track_ids)]
-        
-        if len(playlist_tracks) > 0:
-            # Average audio features
-            audio_cols = ['danceability', 'energy', 'acousticness', 'speechiness', 
-                         'instrumentalness', 'valence', 'tempo']
-            avg_features = playlist_tracks[audio_cols].mean().values
-            
-            # Add track count (normalized)
-            track_count = len(playlist_tracks) / 100.0  # Normalize
-            
-            features_vec = np.concatenate([[track_count], avg_features])
-        else:
-            features_vec = np.zeros(8)  # 1 + 7 audio features
-        
-        playlist_features.append(features_vec)
+    # Define audio feature columns
+    audio_cols = ['danceability', 'energy', 'acousticness', 'speechiness', 
+                 'instrumentalness', 'valence', 'tempo']
     
-    features['playlist'] = torch.tensor(np.array(playlist_features), dtype=torch.float32)
+    # Merge playlist_tracks with tracks to get all features at once
+    merged = playlist_tracks_df.merge(
+        tracks_df[['track_id'] + audio_cols], 
+        on='track_id',
+        how='left'
+    )
+    
+    # Calculate mean features for each playlist
+    playlist_means = merged.groupby('playlist_id')[audio_cols].mean()
+    
+    # Calculate track counts (normalized by 100)
+    track_counts = merged.groupby('playlist_id').size() / 100.0
+    track_counts.name = 'track_count'
+    
+    # Combine track counts with audio features
+    playlist_features_df = pd.concat([track_counts, playlist_means], axis=1)
+    
+    # Ensure all playlists are included (even those with no tracks)
+    all_playlist_ids = playlists_df['playlist_id'].unique()
+    playlist_features_df = playlist_features_df.reindex(all_playlist_ids, fill_value=0.0)
+    
+    # Convert to numpy array in the correct order
+    feature_cols = ['track_count'] + audio_cols
+    playlist_features = playlist_features_df[feature_cols].values
+    
+    features['playlist'] = torch.tensor(playlist_features, dtype=torch.float32)
     
     # Track features: audio features + popularity (if available)
     audio_cols = ['danceability', 'energy', 'acousticness', 'speechiness',
