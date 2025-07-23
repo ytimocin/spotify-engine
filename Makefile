@@ -44,7 +44,15 @@ kaggle-all:
 	@echo "📋 Running Kaggle playlist pipeline..."
 	python scripts/kaggle/prepare_data.py
 	python scripts/kaggle/build_graph.py
-	python -m src.kaggle.train --epochs 20
+	# Training modes (uncomment one):
+	# Mini mode (~5 min): Quick testing, lower quality
+	python -m src.kaggle.train --epochs 3 --max-playlists 500 --batch-size 256
+	# Quick mode (~15 min): Demo quality
+	# python -m src.kaggle.train --epochs 5 --max-playlists 1000 --batch-size 128
+	# Balanced mode (~45 min): Better quality
+	# python -m src.kaggle.train --epochs 8 --max-playlists 5000 --batch-size 96
+	# Full mode (~3-4 hours): Best quality
+	# python -m src.kaggle.train --epochs 20 --max-playlists 50000 --batch-size 64
 	python scripts/kaggle/test_model.py
 	@echo "✅ Kaggle pipeline complete!"
 

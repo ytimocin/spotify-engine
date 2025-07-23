@@ -39,7 +39,7 @@ class PlaylistGAT(nn.Module):
         self.num_layers = num_layers
         self.dropout = dropout
         self.use_layer_norm = use_layer_norm
-        
+
         # If genre_feature_dim not specified, assume one-hot encoding
         if genre_feature_dim is None:
             genre_feature_dim = num_genres
@@ -48,24 +48,26 @@ class PlaylistGAT(nn.Module):
         # Playlists have both embeddings and features
         self.playlist_embedding = nn.Embedding(num_playlists, embedding_dim)
         self.playlist_feature_proj = nn.Linear(playlist_feature_dim, embedding_dim)
-        
+
         # Tracks have features only
         self.track_feature_proj = nn.Linear(track_feature_dim, embedding_dim)
-        
+
         # Artists have both embeddings and features
         self.artist_embedding = nn.Embedding(num_artists, embedding_dim)
         self.artist_feature_proj = nn.Linear(artist_feature_dim, embedding_dim)
-        
+
         # Genres have features only (one-hot or learned)
         self.genre_feature_proj = nn.Linear(genre_feature_dim, embedding_dim)
 
         # Initial projection to hidden dimension
-        self.input_projection = nn.ModuleDict({
-            "playlist": nn.Linear(embedding_dim * 2, hidden_dim),  # emb + features
-            "track": nn.Linear(embedding_dim, hidden_dim),
-            "artist": nn.Linear(embedding_dim * 2, hidden_dim),  # emb + features
-            "genre": nn.Linear(embedding_dim, hidden_dim),
-        })
+        self.input_projection = nn.ModuleDict(
+            {
+                "playlist": nn.Linear(embedding_dim * 2, hidden_dim),  # emb + features
+                "track": nn.Linear(embedding_dim, hidden_dim),
+                "artist": nn.Linear(embedding_dim * 2, hidden_dim),  # emb + features
+                "genre": nn.Linear(embedding_dim, hidden_dim),
+            }
+        )
 
         # Multi-layer heterogeneous GAT
         self.gat_layers = nn.ModuleList()
@@ -155,12 +157,14 @@ class PlaylistGAT(nn.Module):
             )
 
         # Final output projection
-        self.output_projection = nn.ModuleDict({
-            "playlist": nn.Linear(hidden_dim, embedding_dim),
-            "track": nn.Linear(hidden_dim, embedding_dim),
-            "artist": nn.Linear(hidden_dim, embedding_dim),
-            "genre": nn.Linear(hidden_dim, embedding_dim),
-        })
+        self.output_projection = nn.ModuleDict(
+            {
+                "playlist": nn.Linear(hidden_dim, embedding_dim),
+                "track": nn.Linear(hidden_dim, embedding_dim),
+                "artist": nn.Linear(hidden_dim, embedding_dim),
+                "genre": nn.Linear(hidden_dim, embedding_dim),
+            }
+        )
 
         # Initialize embeddings
         self._init_embeddings()
@@ -171,40 +175,37 @@ class PlaylistGAT(nn.Module):
         nn.init.xavier_uniform_(self.artist_embedding.weight)
 
     def forward(
-        self, 
-        x_dict: Dict[str, torch.Tensor], 
-        graph: HeteroData, 
-        return_attention: bool = False
+        self, x_dict: Dict[str, torch.Tensor], graph: HeteroData, return_attention: bool = False
     ) -> Tuple[Dict[str, torch.Tensor], Optional[Dict]]:
         """
         Forward pass through the heterogeneous graph.
-        
+
         Args:
             x_dict: Dict containing node indices and features
             graph: HeteroData graph object
             return_attention: Whether to return attention weights
-            
+
         Returns:
             Updated node embeddings and optionally attention weights
         """
         # Process initial embeddings and features
         h_dict = {}
-        
+
         # Playlists: combine embeddings and features
         playlist_idx = x_dict["playlist"]
         playlist_emb = self.playlist_embedding(playlist_idx)
         playlist_feat = self.playlist_feature_proj(graph["playlist"].x)
         h_dict["playlist"] = torch.cat([playlist_emb, playlist_feat], dim=-1)
-        
+
         # Tracks: features only
         h_dict["track"] = self.track_feature_proj(graph["track"].x)
-        
-        # Artists: combine embeddings and features  
+
+        # Artists: combine embeddings and features
         artist_idx = x_dict["artist"]
         artist_emb = self.artist_embedding(artist_idx)
         artist_feat = self.artist_feature_proj(graph["artist"].x)
         h_dict["artist"] = torch.cat([artist_emb, artist_feat], dim=-1)
-        
+
         # Genres: features only
         h_dict["genre"] = self.genre_feature_proj(graph["genre"].x)
 
@@ -225,8 +226,7 @@ class PlaylistGAT(nn.Module):
             # Apply activation and dropout
             h_dict = {k: F.relu(v) for k, v in h_dict.items()}
             h_dict = {
-                k: F.dropout(v, p=self.dropout, training=self.training) 
-                for k, v in h_dict.items()
+                k: F.dropout(v, p=self.dropout, training=self.training) for k, v in h_dict.items()
             }
 
             # Residual connection
@@ -245,19 +245,16 @@ class PlaylistGAT(nn.Module):
         return h_dict, all_attention_weights
 
     def compute_scores(
-        self, 
-        playlist_embeds: torch.Tensor, 
-        track_embeds: torch.Tensor,
-        temperature: float = 1.0
+        self, playlist_embeds: torch.Tensor, track_embeds: torch.Tensor, temperature: float = 1.0
     ) -> torch.Tensor:
         """
         Compute recommendation scores between playlists and tracks.
-        
+
         Args:
             playlist_embeds: Playlist embeddings [num_playlists, embedding_dim]
             track_embeds: Track embeddings [num_tracks, embedding_dim]
             temperature: Temperature for score scaling
-            
+
         Returns:
             Scores matrix [num_playlists, num_tracks]
         """
@@ -280,14 +277,14 @@ class PlaylistGAT(nn.Module):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Get track recommendations for a playlist.
-        
+
         Args:
             playlist_idx: Playlist index
             x_dict: Node features
             graph: HeteroData graph object
             k: Number of recommendations
             exclude_known: Whether to exclude tracks already in playlist
-            
+
         Returns:
             Top-k track indices and scores
         """
@@ -328,13 +325,13 @@ class PlaylistGAT(nn.Module):
     ) -> Dict[str, any]:
         """
         Explain why a track was recommended for a playlist.
-        
+
         Args:
             playlist_idx: Playlist index
             track_idx: Track index
             x_dict: Node features
             graph: HeteroData graph object
-            
+
         Returns:
             Dictionary with explanation details
         """
@@ -365,22 +362,19 @@ class PlaylistGAT(nn.Module):
             playlist_tracks = graph[("playlist", "contains", "track")].edge_index[1][
                 graph[("playlist", "contains", "track")].edge_index[0] == playlist_idx
             ]
-            
+
             playlist_track_genres = set()
             for pt in playlist_tracks:
                 pt_genres = track_genre_edges[1][track_genre_edges[0] == pt]
                 playlist_track_genres.update(pt_genres.tolist())
-            
+
             common_genres = set(track_genres.tolist()) & playlist_track_genres
             if common_genres:
                 genre_scores = []
                 for genre_idx in common_genres:
                     genre_emb = h_dict["genre"][genre_idx]
                     genre_sim = F.cosine_similarity(playlist_emb, genre_emb, dim=0)
-                    genre_scores.append({
-                        "genre_idx": genre_idx,
-                        "similarity": genre_sim.item()
-                    })
+                    genre_scores.append({"genre_idx": genre_idx, "similarity": genre_sim.item()})
                 explanation["genre_influence"] = sorted(
                     genre_scores, key=lambda x: x["similarity"], reverse=True
                 )
@@ -393,15 +387,15 @@ class PlaylistGAT(nn.Module):
             artist_idx = track_artists[0].item()
             artist_emb = h_dict["artist"][artist_idx]
             artist_sim = F.cosine_similarity(playlist_emb, artist_emb, dim=0)
-            
+
             # Check if playlist has other tracks by this artist
             artist_tracks = track_artist_edges[0][track_artist_edges[1] == artist_idx]
             playlist_artist_tracks = set(artist_tracks.tolist()) & set(playlist_tracks.tolist())
-            
+
             explanation["artist_influence"] = {
                 "artist_idx": artist_idx,
                 "similarity": artist_sim.item(),
-                "tracks_in_playlist": len(playlist_artist_tracks)
+                "tracks_in_playlist": len(playlist_artist_tracks),
             }
 
         # Find similar tracks already in playlist
@@ -410,10 +404,7 @@ class PlaylistGAT(nn.Module):
             for pt in playlist_tracks[:10]:  # Check top 10 tracks
                 pt_emb = h_dict["track"][pt]
                 sim = F.cosine_similarity(track_emb, pt_emb, dim=0)
-                track_sims.append({
-                    "track_idx": pt.item(),
-                    "similarity": sim.item()
-                })
+                track_sims.append({"track_idx": pt.item(), "similarity": sim.item()})
             explanation["similar_tracks_in_playlist"] = sorted(
                 track_sims, key=lambda x: x["similarity"], reverse=True
             )[:3]
