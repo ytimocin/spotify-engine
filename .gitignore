@@ -62,9 +62,8 @@ data/synthetic/*.parquet
 data/synthetic/*.pt
 data/synthetic/*.json
 data/kaggle/*.csv
-data/kaggle/*.parquet
-data/kaggle/*.pt
-data/kaggle/*.json
+data/kaggle/processed/*.parquet
+data/kaggle/processed/*.json
 !data/**/README.md
 !data/**/.gitkeep
 

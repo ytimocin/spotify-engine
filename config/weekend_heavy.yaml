@@ -8,14 +8,14 @@ user_types:
     power: 0.3 # More power users
 
   activity_levels:
-    casual: [ 0.2, 0.4 ] # Higher activity
-    regular: [ 0.4, 0.8 ]
-    power: [ 0.8, 1.0 ]
+    casual: [0.2, 0.4] # Higher activity
+    regular: [0.4, 0.8]
+    power: [0.8, 1.0]
 
   genre_preferences:
-    casual: [ 2, 4 ] # More diverse genres
-    regular: [ 3, 6 ]
-    power: [ 4, 10 ]
+    casual: [2, 4] # More diverse genres
+    regular: [3, 6]
+    power: [4, 10]
 
 # Session configuration
 sessions:
@@ -41,30 +41,30 @@ sessions:
 # Time patterns - weekend-heavy
 time_patterns:
   hourly_weights:
-  - 0.6 # 00:00 - More late night weekend
-  - 0.5 # 01:00
-  - 0.4 # 02:00
-  - 0.3 # 03:00
-  - 0.3 # 04:00
-  - 0.3 # 05:00
-  - 0.4 # 06:00
-  - 0.5 # 07:00
-  - 0.6 # 08:00
-  - 0.8 # 09:00 - Weekend mornings
-  - 0.9 # 10:00
-  - 1.0 # 11:00
-  - 1.0 # 12:00 - Weekend lunch
-  - 1.0 # 13:00
-  - 0.9 # 14:00
-  - 0.9 # 15:00
-  - 0.9 # 16:00
-  - 1.0 # 17:00
-  - 1.0 # 18:00 - Weekend evening
-  - 1.0 # 19:00
-  - 1.0 # 20:00
-  - 0.9 # 21:00
-  - 0.8 # 22:00
-  - 0.7 # 23:00
+    - 0.6 # 00:00 - More late night weekend
+    - 0.5 # 01:00
+    - 0.4 # 02:00
+    - 0.3 # 03:00
+    - 0.3 # 04:00
+    - 0.3 # 05:00
+    - 0.4 # 06:00
+    - 0.5 # 07:00
+    - 0.6 # 08:00
+    - 0.8 # 09:00 - Weekend mornings
+    - 0.9 # 10:00
+    - 1.0 # 11:00
+    - 1.0 # 12:00 - Weekend lunch
+    - 1.0 # 13:00
+    - 0.9 # 14:00
+    - 0.9 # 15:00
+    - 0.9 # 16:00
+    - 1.0 # 17:00
+    - 1.0 # 18:00 - Weekend evening
+    - 1.0 # 19:00
+    - 1.0 # 20:00
+    - 0.9 # 21:00
+    - 0.8 # 22:00
+    - 0.7 # 23:00
 
 # Content settings remain the same
 content:
